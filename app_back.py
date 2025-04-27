@@ -1,0 +1,273 @@
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
+import uuid
+import time
+import gradio as gr
+# import dotenv
+# dotenv.load_dotenv()
+from agent.agent import CareerAgent
+from agent.tools import all_tools as tools 
+
+# Postgres connection URI
+PG_URI = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+
+# Initialize Career Agent with tools and memory store
+agent = CareerAgent(tools, PG_URI)
+agent.setup_memory_and_store()
+agent.build()
+graph = agent.get_graph()
+
+# ======================== File & UI Utilities ========================
+
+def extract_text_from_pdf(file_path):
+    """Extract text content from uploaded PDF file."""
+    if not file_path:
+        return "No file uploaded!", gr.update(visible=True)
+    
+    loader = PyPDFLoader(file_path)
+    pages = loader.load_and_split()
+    return "\n".join([page.page_content for page in pages])  
+
+def hide_component():
+    """Hide Gradio component."""
+    return gr.update(visible=False)
+
+def show_component():
+    """Show Gradio component."""
+    return gr.update(visible=True)
+
+# ======================== State Checking Functions ========================
+
+def get_latest_cv_text(config):
+    """Return the latest CV content from state."""
+    return graph.get_state(config).values.get("new_cv", "Not available")
+
+def get_thread_summary(config):
+    """Return the summarized chat history from state."""
+    return graph.get_state(config).values.get("chat_history_summary", "Not available")
+
+def get_user_info_memory(config):
+    """Retrieve long-term memory info of user stored across threads."""
+    user_id = config["configurable"]["user_id"]
+    namespace = ("user_info", user_id)
+    try:
+        user_info = graph.store.get(namespace, "info")
+        if user_info:
+            user_info = user_info.value
+            print("user_info:", user_info)
+            return user_info
+        return "Not available"
+    except Exception:
+        return "Fail to get user info"
+
+def refresh_internal_state(config):
+    """Update UI with new CV, thread summary, and user memory."""
+    return get_latest_cv_text(config), get_thread_summary(config), get_user_info_memory(config)
+
+# ======================== Config Initialization ========================
+
+def initialize_config_and_ui(thread_id, user_id):
+    """Load config, chat history, and CV info based on user/thread ID."""
+    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
+    state = graph.get_state(config).values
+    chat_history = []
+
+    if state:
+        for mess in state["messages"]:
+            if isinstance(mess, HumanMessage):
+                chat_history.append({"role": "user", "content": mess.content})
+            elif isinstance(mess, AIMessage):
+                chat_history.append({"role": "assistant", "content": mess.content})
+        return chat_history, config, state.get("cv", "Not available"), state.get("new_cv", "Not available")
+    else:
+        return "", config, "Not available", "Not available"
+
+# ======================== Chat Handling ========================
+
+def handle_user_input(user_message, chat_history):
+    """Add user text and uploaded file (if any) to chat history."""
+    print("-u-")
+    if user_message["files"]:
+        file_content = extract_text_from_pdf(user_message["files"][0])
+        return gr.MultimodalTextbox(value=None), chat_history + [
+            {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
+            {"role": "user", "content": file_content, "metadata": {"title": "File included", "id": str(uuid.uuid4())}},
+        ]
+    else:
+        return gr.MultimodalTextbox(value=None), chat_history + [
+            {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
+        ]
+
+import re
+
+def split_content(text: str):
+    # Tìm nội dung trong <think>...</think> ngay ở đầu
+    match = re.match(r'<think>(.*?)</think>(.*)', text, re.DOTALL)
+    
+    if match:
+        think_content = match.group(1).strip()
+        say_content = match.group(2).strip()
+    else:
+        # Nếu không tìm thấy <think> thì coi toàn bộ là outside
+        think_content = ""
+        say_content = text.strip()
+    
+    return think_content, say_content
+    
+def stream_bot_response(config, chat_history):
+    """Bot responds to last message; streams token-by-token for animation."""
+    print("-b-")
+    try:
+        last_message = chat_history[-1]
+
+        if last_message["metadata"].get("title", ""):
+            state = {
+                "messages": [HumanMessage(chat_history[-2]["content"], id=chat_history[-2]["metadata"]["id"])],
+                "cv": last_message["content"],
+            }
+        else:
+            state = {
+                "messages": [HumanMessage(last_message["content"], id=last_message["metadata"]["id"])],
+            }
+
+        print(config)
+        for i, chunk in enumerate(graph.stream(state, config, stream_mode="updates")):
+            
+            if chunk.get("tools", ""):
+                m = chunk["tools"]["messages"]
+                chat_history.append({"role": "assistant", 
+                            "content": "", 
+                            "metadata": {
+                                "title":f"Considering tool {', '.join(tool['name'] for tool in tool_calls)} response...",
+                                }})
+                yield chat_history
+                
+                
+            if chunk.get("agent", ""):
+                m = chunk["agent"]["messages"][0]
+                if m.content: # response
+                    think_content, say_content = split_content(m.content)
+                    
+                    
+                    # -------- pseudo stream token -----------
+                    chat_history.append({"role": "assistant", 
+                            "content": "", 
+                            "metadata": {
+                                "title": "", 
+                                "id": m.id
+                                }})
+                    for char in think_content:
+                        chat_history[-1]['metadata']["title"] += char
+                        time.sleep(0.001)
+                        yield chat_history
+                    for char in say_content:
+                        chat_history[-1]['content'] += char
+                        time.sleep(0.001)
+                        yield chat_history
+                        
+                    # chat_history[-1] = {"role": "assistant", 
+                    #         "content": "", 
+                    #         "metadata": {
+                    #             "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
+                    #             "id": m.id
+                    #             }}
+                    return chat_history
+                        
+                    # --------- return all message --------
+                    # chat_history.append({"role": "assistant", 
+                    #         "content": say_content, 
+                    #         "metadata": {
+                    #             "title": think_content, 
+                    #             "id": m.id
+                    #             }})
+                    # yield chat_history
+                
+                else: #call tool
+                    tool_calls = m.tool_calls
+                    chat_history.append({"role": "assistant", 
+                            "content": "", 
+                            "metadata": {
+                                "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
+                                "id": m.id
+                                }})
+                    yield chat_history 
+    except Exception as e:
+        chat_history.append({"role": "assistant", 
+                            "content": f"Got error: {e}"})
+        yield chat_history
+
+
+def edit_message(history, edit_data: gr.EditData):
+    """Edit a message in the chat UI."""
+    new_history = history[:edit_data.index]
+    msg_id = history[edit_data.index]["metadata"]["id"]
+    new_history.append({"role": "user", "content": edit_data.value, "metadata": {"id": msg_id}})
+    return new_history
+
+def fork_message(config, chat_history):
+    """Fork state from last message in chat and create a new config."""
+    hist = graph.get_state_history(config)
+    last_message = chat_history[-1]
+
+    for i, s in enumerate(hist):
+        if i % 2 == 0 and s.values["messages"][-1].id == last_message["metadata"]["id"]:
+            to_fork = s.config
+            break
+
+    fork_config = graph.update_state(
+        to_fork,
+        {"messages": [HumanMessage(content=last_message["content"], id=last_message["metadata"]["id"])]},
+    )
+    fork_config["configurable"]["user_id"] = config["configurable"]["user_id"]
+    return fork_config
+
+def remove_checkpoint_from_config(config):
+    """Remove checkpoint ID from config to reset tracking."""
+    config["configurable"].pop("checkpoint_id", None)
+    return config
+
+# ======================== User/Thread Utilities ========================
+
+def generate_new_id():
+    """Generate a new unique user/thread ID."""
+    print("---gen id---")
+    return gr.update(value=str(uuid.uuid4()))
+
+def update_user_id_dropdown(choices, new_id=False):
+    """Update dropdown choices when a new user ID is added."""
+    if not new_id:
+        new_id = str(uuid.uuid4())
+    if new_id not in choices:
+        print("---add choice---")
+        choices.append(new_id)
+    return gr.update(value=new_id, choices=choices), choices
+
+def insert_user_thread_to_db(user_id, thread_id):
+    """Insert user-thread mapping to PostgreSQL DB."""
+    print("---add db---")
+    from psycopg import connect
+    conn = connect(PG_URI, autocommit=True)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO user_thread (user_id, thread_id)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id, thread_id) DO NOTHING
+    """, (user_id, thread_id))
+
+def get_or_create_user_thread(user_id):
+    """Return user's existing thread or create a new one."""
+    print("---check thread---")
+    from psycopg import connect
+    conn = connect(PG_URI, autocommit=True)
+    cursor = conn.cursor()
+    cursor.execute("""SELECT * FROM user_thread WHERE user_id = %s""", (user_id,))
+    rows = cursor.fetchall()
+    if rows:
+        print(f"User id: {user_id} has {len(rows)} available thread")
+        available_threads = [row[1] for row in rows]
+        return gr.update(value=available_threads[0], choices=available_threads), available_threads
+    else:
+        print("New User")
+        new_thread_id = str(uuid.uuid4())
+        insert_user_thread_to_db(user_id, new_thread_id)
+        return gr.update(value=new_thread_id, choices=[new_thread_id]), [new_thread_id]
