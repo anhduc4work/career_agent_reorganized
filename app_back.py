@@ -98,22 +98,6 @@ def handle_user_input(user_message, chat_history):
             {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
         ]
 
-import re
-
-def split_content(text: str):
-    # Tìm nội dung trong <think>...</think> ngay ở đầu
-    match = re.match(r'<think>(.*?)</think>(.*)', text, re.DOTALL)
-    
-    if match:
-        think_content = match.group(1).strip()
-        say_content = match.group(2).strip()
-    else:
-        # Nếu không tìm thấy <think> thì coi toàn bộ là outside
-        think_content = ""
-        say_content = text.strip()
-    
-    return think_content, say_content
-    
 def stream_bot_response(config, chat_history):
     """Bot responds to last message; streams token-by-token for animation."""
     print("-b-")
@@ -131,70 +115,130 @@ def stream_bot_response(config, chat_history):
             }
 
         print(config)
-        for i, chunk in enumerate(graph.stream(state, config, stream_mode="updates")):
+        chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "",}})
+        
+        THINK_FLAG = False
+        for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
+            if metadata["langgraph_node"] == "agent":
+                
+                if msg.tool_calls and not msg.content: #call tool
+                    chat_history[-1]["metadata"]["title"] = f"Calling {', '.join(tool['name'] for tool in msg.tool_calls)}"
+                        
+                else: #response
+                    if msg.content.strip() == "<think>":
+                        print("start thinking token")                
+                        THINK_FLAG = True
+                        chat_history[-1]["metadata"]["title"] = ""
+                    elif msg.content.strip() == "</think>":
+                        print("end thinking token")                
+                        THINK_FLAG = False
+                        chat_history[-1]["metadata"]["title"] += "\n" + "_____"*10
+                    else:
+                        pass
+                    
+                    if THINK_FLAG:    
+                        chat_history[-1]["metadata"]["title"] += msg.content
+                    else:             
+                        chat_history[-1]["content"] += msg.content
+                                    
+                    
+                    yield chat_history
             
-            if chunk.get("tools", ""):
-                m = chunk["tools"]["messages"]
-                chat_history.append({"role": "assistant", 
-                            "content": "", 
-                            "metadata": {
-                                "title":f"Considering tool {', '.join(tool['name'] for tool in tool_calls)} response...",
-                                }})
-                yield chat_history
-                
-                
-            if chunk.get("agent", ""):
-                m = chunk["agent"]["messages"][0]
-                if m.content: # response
-                    think_content, say_content = split_content(m.content)
-                    
-                    
-                    # -------- pseudo stream token -----------
-                    chat_history.append({"role": "assistant", 
-                            "content": "", 
-                            "metadata": {
-                                "title": "", 
-                                "id": m.id
-                                }})
-                    for char in think_content:
-                        chat_history[-1]['metadata']["title"] += char
-                        time.sleep(0.001)
-                        yield chat_history
-                    for char in say_content:
-                        chat_history[-1]['content'] += char
-                        time.sleep(0.001)
-                        yield chat_history
-                        
-                    # chat_history[-1] = {"role": "assistant", 
-                    #         "content": "", 
-                    #         "metadata": {
-                    #             "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
-                    #             "id": m.id
-                    #             }}
-                    return chat_history
-                        
-                    # --------- return all message --------
-                    # chat_history.append({"role": "assistant", 
-                    #         "content": say_content, 
-                    #         "metadata": {
-                    #             "title": think_content, 
-                    #             "id": m.id
-                    #             }})
-                    # yield chat_history
-                
-                else: #call tool
-                    tool_calls = m.tool_calls
-                    chat_history.append({"role": "assistant", 
-                            "content": "", 
-                            "metadata": {
-                                "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
-                                "id": m.id
-                                }})
-                    yield chat_history 
+            elif metadata["langgraph_node"] == "tools":
+                chat_history[-1]["metadata"]["title"] = f"Considering tool response..."
+            
+            else:
+                pass
+            
+            yield chat_history
+    
     except Exception as e:
         chat_history.append({"role": "assistant", 
                             "content": f"Got error: {e}"})
         yield chat_history
+        
+
+# def stream_bot_response_2(config, chat_history):
+#     """Bot responds to last message; streams token-by-token for animation."""
+#     print("-b-")
+#     try:
+#         last_message = chat_history[-1]
+
+#         if last_message["metadata"].get("title", ""):
+#             state = {
+#                 "messages": [HumanMessage(chat_history[-2]["content"], id=chat_history[-2]["metadata"]["id"])],
+#                 "cv": last_message["content"],
+#             }
+#         else:
+#             state = {
+#                 "messages": [HumanMessage(last_message["content"], id=last_message["metadata"]["id"])],
+#             }
+
+#         print(config)
+#         for i, chunk in enumerate(graph.stream(state, config, stream_mode="updates")):
+            
+#             if chunk.get("tools", ""):
+#                 m = chunk["tools"]["messages"]
+#                 chat_history.append({"role": "assistant", 
+#                             "content": "", 
+#                             "metadata": {
+#                                 "title":f"Considering tool {', '.join(tool['name'] for tool in tool_calls)} response...",
+#                                 }})
+#                 yield chat_history
+                
+                
+#             if chunk.get("agent", ""):
+#                 m = chunk["agent"]["messages"][0]
+#                 if m.content: # response
+#                     think_content, say_content = split_content(m.content)
+                    
+                    
+#                     # -------- pseudo stream token -----------
+#                     chat_history.append({"role": "assistant", 
+#                             "content": "", 
+#                             "metadata": {
+#                                 "title": "", 
+#                                 "id": m.id
+#                                 }})
+#                     for char in think_content:
+#                         chat_history[-1]['metadata']["title"] += char
+#                         time.sleep(0.001)
+#                         yield chat_history
+#                     for char in say_content:
+#                         chat_history[-1]['content'] += char
+#                         time.sleep(0.001)
+#                         yield chat_history
+                        
+#                     # chat_history[-1] = {"role": "assistant", 
+#                     #         "content": "", 
+#                     #         "metadata": {
+#                     #             "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
+#                     #             "id": m.id
+#                     #             }}
+#                     return chat_history
+                        
+#                     # --------- return all message --------
+#                     # chat_history.append({"role": "assistant", 
+#                     #         "content": say_content, 
+#                     #         "metadata": {
+#                     #             "title": think_content, 
+#                     #             "id": m.id
+#                     #             }})
+#                     # yield chat_history
+                
+#                 else: #call tool
+#                     tool_calls = m.tool_calls
+#                     chat_history.append({"role": "assistant", 
+#                             "content": "", 
+#                             "metadata": {
+#                                 "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
+#                                 "id": m.id
+#                                 }})
+#                     yield chat_history 
+#     except Exception as e:
+#         chat_history.append({"role": "assistant", 
+#                             "content": f"Got error: {e}"})
+#         yield chat_history
 
 
 def edit_message(history, edit_data: gr.EditData):
