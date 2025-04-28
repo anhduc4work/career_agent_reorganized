@@ -1,12 +1,12 @@
 gradio
-langchain_ollama 
 langgraph 
-langchain_google_genai
-gradio 
+langgraph-checkpoint-postgres
+langchain_postgres
 langchain_community 
 pypdf
 huggingface_hub
 pydantic==2.10.6
 python-dotenv
-langgraph-checkpoint-postgres
-langchain_postgres
+langchain_google_genai
+langchain_ollama 
+langchain_together
