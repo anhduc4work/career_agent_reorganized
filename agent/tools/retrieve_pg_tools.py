@@ -51,15 +51,25 @@ vector_store = get_vector_store()
 # ---------------------------- TOOLS ----------------------------
 
 @tool
-def job_search_by_query(job: str, k: int = 3,
-               job_type: Optional[JobType] = None,
-               position: Optional[Position] = None) -> list[str]:
+def job_search_by_query(
+    job: str, 
+    k: int = 3,
+    job_type: Optional[JobType] = None,
+    position: Optional[Position] = None
+) -> list[str]:
     """
-    Search for jobs based on a query with optional filters.
+    Search for jobs based on a text query, with optional filters.
+
+    Args:
+        job (str): The job search query (keywords, topics, etc.).
+        k (int, optional): The number of top results to return. Defaults to 3.
+        job_type (Optional[JobType], optional): Filter by job type (e.g., full-time, part-time, negotiation).
+        position (Optional[Position], optional): Filter by job position (e.g., Research, Lecturer, Admin).
+
+    Returns:
+        list[str]: A list of job descriptions matching the query and filters.
     """
     print("--tool: job_search_by_query--")
-    # print(job, k, job_type, position)
-
     filters = {}
     if job_type:
         filters["workingtime"] = job_type.value
@@ -79,15 +89,25 @@ def job_search_by_query(job: str, k: int = 3,
 
 
 @tool
-def job_search_by_cv(cv: Annotated[str, InjectedState("cv")],
-                     k: int = 3,
-                     job_type: Optional[JobType] = None,
-                     position: Optional[Position] = None) -> list[str]:
+def job_search_by_cv(
+    cv: Annotated[str, InjectedState("cv")],
+    k: int = 3,
+    job_type: Optional[JobType] = None,
+    position: Optional[Position] = None
+) -> list[str]:
     """
-    Search for jobs based on a provided CV with optional filters.
+    Search for jobs based on the content of a CV, with optional filters.
+
+    Args:
+        k (int, optional): The number of top results to return. Defaults to 3.
+        job_type (Optional[JobType], optional): Filter by job type (e.g., full-time, part-time, negotiation).
+        position (Optional[Position], optional): Filter by job position (e.g., Research, Lecturer, Admin).
+
+    Returns:
+        list[str]: A list of job descriptions matching the CV content and filters.
     """
     print("--tool: job_search_by_cv--")
-    # print(k, job_type, position)
+    print(k, job_type, position)
 
     filters = {}
     if job_type:
@@ -103,5 +123,6 @@ def job_search_by_cv(cv: Annotated[str, InjectedState("cv")],
             'filter': filters
         }
     )
-
-    return retriever.invoke(cv)
+    response = retriever.invoke(cv)
+    print(response)
+    return response

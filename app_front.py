@@ -9,10 +9,21 @@ from app_back import (
     stream_bot_response,
     handle_user_input,
     remove_checkpoint_from_config,
-    refresh_internal_state
+    refresh_internal_state,
+    show_component,
+    hide_component
 )
 
-################## UI ##################
+from app_testcase import (
+    demo_review_cv_tool,
+    demo_score_jds_tool,
+    demo_search_by_query_tool,
+    demo_upload_cv_and_search_tool
+)
+
+
+
+################## ------------- UI ------------- ##################
 initial_user_id = "Default User"
 initial_thread_id = "1"
 insert_user_thread_to_db(initial_user_id, initial_thread_id)
@@ -23,18 +34,16 @@ with gr.Blocks(fill_width=True) as demo:
     gr.Markdown("# Career Agent")
     
     with gr.Tab("Chat"):
-        # with gr.Row():
-            # with gr.Column(scale=1):
         with gr.Row():
             user_choices_state = gr.State([initial_user_id])
+            thread_choices_state = gr.State([initial_thread_id])
+            
             user_id = gr.Dropdown(
                 value=initial_user_id, choices=[initial_user_id],
                 label="User ID", interactive=True, allow_custom_value=True,
             )
             add_user = gr.Button("+", scale=0, variant="primary")
 
-        # with gr.Row():
-            thread_choices_state = gr.State([initial_thread_id])
             thread_id = gr.Dropdown(
                 value=initial_thread_id, choices=[initial_thread_id],
                 label="Thread ID", interactive=True
@@ -46,11 +55,17 @@ with gr.Blocks(fill_width=True) as demo:
         gr.Markdown("___"*40, height=40)
         
         with gr.Row():
+            with gr.Column(scale = 1, variant="panel"):
+                demo_upload_cv_and_search_button = gr.Button("Demo upload CV and search")
+                demo_search_by_query_button = gr.Button("Demo search job query")
+                demo_score_jds_button = gr.Button("Demo score job descriptions", visible= False)
+                demo_review_cv_button = gr.Button("Demo review cv", visible= False)
             
-            with gr.Column(scale=4):
+            with gr.Column(scale=4, variant="compact"):
                 chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
                 msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
-
+    
+        
     with gr.Tab("Underthehood") as tab2:
         with gr.Column():
             cross_thread_info = gr.Textbox(label="User Info (Cross Thread)", interactive=False, visible=True)
@@ -67,7 +82,7 @@ with gr.Blocks(fill_width=True) as demo:
             min_width=800
         )
 
-    ############## FUNCTION HOOKS ##############
+    ############## ------------- FUNCTION HOOKS ------------- ##############
 
     demo.load(get_or_create_user_thread, [user_id], [thread_id, thread_choices_state]).\
         then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
@@ -98,5 +113,18 @@ with gr.Blocks(fill_width=True) as demo:
 
     # Có thể thêm lại so sánh CV nếu muốn
     # new_cv_text.change(diff_texts, [cv_text, new_cv_text], [cp])
+    
+    ######################## ------------- TEST CASE ------------- #########################
+    demo_upload_cv_and_search_button.click(demo_upload_cv_and_search_tool, [chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot], [chatbot]).\
+            then(show_component, outputs=[demo_score_jds_button]).\
+                then(show_component, outputs=[demo_review_cv_button])
+                
+    demo_search_by_query_button.click(demo_search_by_query_tool, [chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot], [chatbot])
+    demo_score_jds_button.click(demo_score_jds_tool, [chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot], [chatbot])
+    demo_review_cv_button.click(demo_review_cv_tool, [chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot], [chatbot])
 
 demo.launch(share=True)

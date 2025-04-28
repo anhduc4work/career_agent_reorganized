@@ -13,7 +13,7 @@ def get_llm(model: str = "gemini-1.5-flash", temperature: float = 0, **kwargs) -
     try:
         if model == "gemini-1.5-flash":
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash-8b",
+                model="gemini-1.5-flash",
                 temperature=temperature,
                 **kwargs
             )

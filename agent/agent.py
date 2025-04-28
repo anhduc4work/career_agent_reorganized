@@ -219,7 +219,8 @@ class CareerAgent:
         if thread_memo:
             print("memo:", thread_memo)
 
-        model = get_llm(model = "Qwen/QwQ-32B")
+        # model = get_llm(model = "Qwen/QwQ-32B")
+        model = get_llm()
         model = model.bind_tools(self.tools)
 
         
@@ -243,7 +244,9 @@ class CareerAgent:
             ))
         ] + messages)
         
-        # print(response)
+        print("cv: ", state.get("cv", "-------------")[:10])
+        print(response)
+        
 
         return Command(update={"messages": [response], "sender": "agent"})
     

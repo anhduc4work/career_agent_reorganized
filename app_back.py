@@ -104,6 +104,7 @@ def stream_bot_response(config, chat_history):
     try:
         last_message = chat_history[-1]
 
+        # Incase user upload file
         if last_message["metadata"].get("title", ""):
             state = {
                 "messages": [HumanMessage(chat_history[-2]["content"], id=chat_history[-2]["metadata"]["id"])],
@@ -115,6 +116,8 @@ def stream_bot_response(config, chat_history):
             }
 
         print(config)
+        
+        # Prepare for new messages
         chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "",}})
         
         THINK_FLAG = False
@@ -125,21 +128,25 @@ def stream_bot_response(config, chat_history):
                     chat_history[-1]["metadata"]["title"] = f"Calling {', '.join(tool['name'] for tool in msg.tool_calls)}"
                         
                 else: #response
-                    if msg.content.strip() == "<think>":
+                    new_token = msg.content
+                    if new_token.strip() == "<think>":
                         print("start thinking token")                
                         THINK_FLAG = True
                         chat_history[-1]["metadata"]["title"] = ""
-                    elif msg.content.strip() == "</think>":
+                        
+                    elif new_token.strip() == "</think>":
                         print("end thinking token")                
                         THINK_FLAG = False
-                        chat_history[-1]["metadata"]["title"] += "\n" + "_____"*10
-                    else:
-                        pass
-                    
-                    if THINK_FLAG:    
-                        chat_history[-1]["metadata"]["title"] += msg.content
-                    else:             
-                        chat_history[-1]["content"] += msg.content
+                        chat_history.append({"role": "assistant", "content": ""})
+                        
+                    else:                    
+                        if THINK_FLAG:    
+                            chat_history[-1]["metadata"]["title"] += new_token
+                        else:
+                            if chat_history[-1]["metadata"]["title"] == f"Considering tool response...":
+                                chat_history.append({"role": "assistant", "content": ""})
+                                
+                            chat_history[-1]["content"] += new_token
                                     
                     
                     yield chat_history
