@@ -1,5 +1,6 @@
 # llm_provider.py
 import dotenv
+import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_together import ChatTogether
 from pydantic import BaseModel
@@ -7,6 +8,9 @@ from langchain_core.language_models.chat_models import BaseChatModel # Import đ
 dotenv.load_dotenv()
 
 # --- Gemini Model Getters ---
+api = os.environ["GOOGLE_API_KEY"]
+if not api:
+    raise "API key not found"
 
 def get_llm(model: str = "gemini-1.5-flash", temperature: float = 0, **kwargs) -> BaseChatModel:
     """"""
