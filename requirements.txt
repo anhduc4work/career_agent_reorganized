@@ -7,6 +7,6 @@ pypdf
 huggingface_hub
 pydantic==2.10.6
 python-dotenv
-langchain_google_genai
-langchain_ollama 
-langchain_together
+# langchain-google-genai
+langchain-ollama 
+# langchain-together
