@@ -1,41 +1,43 @@
 # llm_provider.py
 import dotenv
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_together import ChatTogether
 from pydantic import BaseModel
+from typing import Literal
 from langchain_core.language_models.chat_models import BaseChatModel # Import để type hint
 dotenv.load_dotenv()
 
-# --- Gemini Model Getters ---
-api = os.environ["GOOGLE_API_KEY"]
-if not api:
-    raise "API key not found"
-
-def get_llm(model: str = "gemini-1.5-flash", temperature: float = 0, **kwargs) -> BaseChatModel:
+# --- Model Getters ---
+def get_llm(model: Literal["qwen3:14b", "qwen3:30b", "qwq", "Qwen/QwQ-32B"] = "qwen3:14b", temperature: float = 0, **kwargs) -> BaseChatModel:
     """"""
     try:
-        if model == "gemini-1.5-flash":
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                temperature=temperature,
-                **kwargs
-            )
-        else:
+        if model == "Qwen/QwQ-32B":
+            from langchain_together import ChatTogether
+            api = os.environ["TOGETHER_API_KEY"]
+            if not api:
+                raise "Together API key not found" 
             llm = ChatTogether(
-                model="Qwen/QwQ-32B",
+                model=model,
                 temperature=temperature,
                 **kwargs
             )
+        
+        else:
+            from langchain_ollama import ChatOllama
+            llm = ChatOllama(
+                model = model,
+                temperature=temperature,
+                repeat_penalty=1, top_p=0.95, top_k=20,
+                **kwargs
+            )
+        
         return llm
     except Exception as e:
-        print(f"Lỗi khi khởi tạo ChatGoogleGenerativeAI: {e}")
-        # Có thể raise lỗi hoặc trả về None tùy theo cách xử lý mong muốn
+        print(f"Lỗi khi khởi tạo: {e}")
         raise e # Re-raise lỗi để báo hiệu vấn đề
 
 def get_llm_structured(
     schema: type[BaseModel],
-    model: str = "gemini-1.5-flash", # Model hỗ trợ tốt structured output/function calling
+    model: Literal["qwen3:14b", "qwen3:30b", "qwq", "Qwen/QwQ-32B"] = "qwen3:14b", 
     temperature: float = 0,
     **kwargs
 ) -> BaseChatModel:
