@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 import operator
 from langgraph.constants import Send
 from pydantic import BaseModel, Field, model_validator
-
+from agent.tools.retrieve_pg_tools import vector_store
 # Import LLM model and prompts from external module
 from agent.llm_provider import get_llm_structured
 
@@ -79,16 +79,20 @@ class ScoreState(MessagesState):
     jd: str
     jds: List[str]
     jd_analysis: Annotated[list, operator.add]
+    jd_index: List[str]
 
 
 # ---------------------------- AGENT LOGIC ----------------------------
 def do_nothing(state):
     """Do nothing but setup for router"""
-    pass
+    jds = vector_store.get_by_ids([str(i) for i in state["jd_index"]])
+    jds = [jd.page_content for jd in jds]
+    print(jds)
+    return {"jds": jds}
 
 def router(state):
     print("--router--")
-    print(type(state.get("jds", [])),state.get("jds", []))
+    # print(type(state.get("jds", [])),state.get("jds", []))
     return [Send("score", {"jd": jd}) for jd in state.get("jds", [])]
 
 def score_agent(state):
@@ -98,7 +102,7 @@ def score_agent(state):
     llm = get_llm_structured(CVJDMatchFeedback)
     response = llm.invoke([
         SystemMessage(score_instruction.format(cv=cv, jd=jd)),
-        HumanMessage("Conduct scoring")
+        HumanMessage("Conduct scoring. /no_think")
     ])
     return {"jd_analysis": [response]}
 
@@ -108,7 +112,7 @@ def summarize_score_agent(state):
     llm = get_llm_structured(ScoreSummary)
     response = llm.invoke([
         SystemMessage(summary_instruction),
-        HumanMessage(f"Here are the analyses of jobs: {jd_analysis}")
+        HumanMessage(f"Here are the analyses of jobs: {jd_analysis}. /no_think")
     ])
     return response
 
@@ -130,15 +134,21 @@ def build_score_graph() -> StateGraph:
 score_agent = build_score_graph()
 
 # ---------------------------- TOOL ----------------------------
+from langgraph.prebuilt import InjectedState
 from langchain_core.tools import tool
 @tool
-def score_jobs(jds: list[str], cv: str):
+def score_jobs(jd_index: list[int], cv: Annotated[str, InjectedState("cv")]):
     """
-    Compare a list of job descriptions (JDs) against a single CV and evaluate the candidate's fit for each job.
+    Evaluate how well a given CV matches a list of job descriptions (JDs) by scoring each JD individually.
+
+    Args:
+        jd_index (list[int]): List of indices identifying the job descriptions to compare against the CV.
+        cv (str): The candidate's CV, automatically injected from application state.
 
     Returns:
-        A structured summary containing score evaluations and comments for each JD compared to the CV.
+        dict: A structured summary that includes evaluation scores and comments highlighting the candidate's fit across all selected JDs.
     """
     print("--tool6: score--")
-    response = score_agent.invoke({"jds": jds, "cv": cv})
+    jd_index = [str(i) for i in jd_index]
+    response = score_agent.invoke({"jd_index": jd_index, "cv": cv})
     return response

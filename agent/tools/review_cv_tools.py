@@ -7,6 +7,7 @@ from langchain_core.tools.base import InjectedToolCallId
 from langchain_core.tools import tool
 from langgraph.types import Command
 from agent.llm_provider import get_llm_structured
+from agent.tools.retrieve_pg_tools import vector_store
 
 # ----------------------------- SCHEMAS -----------------------------
 class Feedback(BaseModel):
@@ -150,22 +151,26 @@ review_agent = workflow.compile()
 
 # ----------------------------- TOOL WRAPPER -----------------------------
 @tool
-def review_cv(job_description: str, state: Annotated[dict, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId]):
-    """Review curriculum vitae by comparing it with job description."""
+def review_cv(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_call_id: Annotated[str, InjectedToolCallId]):
+    """Review and improve a CV by comparing it against a specific job description.
+
+    Args:
+        job_index (str): The identifier of the job description to compare against."""
     print("--tool: review_cv--")
 
-    candidate_cv = state.get("cv", "")
-    if not candidate_cv:
+    if not cv:
         raise FileExistsError('CV is not uploaded yet.')
 
-    if not job_description:
-        job_description = state.get('jd', "")
-    if not job_description:
-        raise FileExistsError('JD is not uploaded yet.')
+    jd = vector_store.get_by_ids([job_index])[0]
+    
+    if not jd:
+        raise FileExistsError('JD is not available.')
+        
+    jd = jd.page_content
 
     result = review_agent.invoke({
-        "job_description": job_description,
-        "candidate_cv": candidate_cv,
+        "job_description": jd,
+        "candidate_cv": cv,
     })
 
     return Command(

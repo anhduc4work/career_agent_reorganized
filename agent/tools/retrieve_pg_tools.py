@@ -5,8 +5,10 @@ from langgraph.prebuilt import InjectedState
 from langchain_postgres import PGVector
 from langchain_ollama import OllamaEmbeddings
 from enum import Enum
-from typing import Optional, Annotated
-
+from langgraph.types import Command
+from langgraph.graph import MessagesState
+from langchain_core.messages import ToolMessage
+from langchain_core.tools.base import InjectedToolCallId
 # ---------------------------- PROMPT ----------------------------
 
 class JobType(str, Enum):
@@ -47,15 +49,28 @@ def get_vector_store():
     )
 
 vector_store = get_vector_store()
+import json
+
+def documents_to_json(documents):
+    result = []
+    for doc in documents:
+        result.append({
+            "id": str(doc.id) if hasattr(doc, "id") else None,
+            "metadata": doc.metadata,
+            "page_content": doc.page_content
+        })
+    return result
 
 # ---------------------------- TOOLS ----------------------------
 
 @tool
 def job_search_by_query(
     job: str, 
+    tool_call_id: Annotated[str, InjectedToolCallId],
     k: int = 3,
     job_type: Optional[JobType] = None,
-    position: Optional[Position] = None
+    position: Optional[Position] = None,
+    
 ) -> list[str]:
     """
     Search for jobs based on a text query, with optional filters.
@@ -63,8 +78,8 @@ def job_search_by_query(
     Args:
         job (str): The job search query (keywords, topics, etc.).
         k (int, optional): The number of top results to return. Defaults to 3.
-        job_type (Optional[JobType], optional): Filter by job type (e.g., full-time, part-time, negotiation).
-        position (Optional[Position], optional): Filter by job position (e.g., Research, Lecturer, Admin).
+        job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, negotiation).
+        position (Optional[Position], optional): Filter by job position.
 
     Returns:
         list[str]: A list of job descriptions matching the query and filters.
@@ -84,24 +99,29 @@ def job_search_by_query(
             'filter': filters
         }
     )
-
-    return retriever.invoke(job)
+    # Format result: 
+    output = retriever.invoke(job)
+    formated_response = documents_to_json(output)
+    
+    return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
+                                                    tool_call_id=tool_call_id)], "jds": formated_response})
 
 
 @tool
 def job_search_by_cv(
     cv: Annotated[str, InjectedState("cv")],
+    tool_call_id: Annotated[str, InjectedToolCallId],
     k: int = 3,
     job_type: Optional[JobType] = None,
-    position: Optional[Position] = None
+    position: Optional[Position] = None,
 ) -> list[str]:
     """
     Search for jobs based on the content of a CV, with optional filters.
 
     Args:
         k (int, optional): The number of top results to return. Defaults to 3.
-        job_type (Optional[JobType], optional): Filter by job type (e.g., full-time, part-time, negotiation).
-        position (Optional[Position], optional): Filter by job position (e.g., Research, Lecturer, Admin).
+        job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, negotiation).
+        position (Optional[Position], optional): Filter by job position.
 
     Returns:
         list[str]: A list of job descriptions matching the CV content and filters.
@@ -123,6 +143,10 @@ def job_search_by_cv(
             'filter': filters
         }
     )
-    response = retriever.invoke(cv)
-    print(response)
-    return response
+    output = retriever.invoke(cv)
+    formated_response = documents_to_json(output)
+    
+    return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
+                                                    tool_call_id=tool_call_id)], "jds": formated_response})
+    
+    
