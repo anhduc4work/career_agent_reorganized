@@ -11,19 +11,19 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.store.postgres import PostgresStore
 from langgraph.checkpoint.postgres import PostgresSaver
 from .llm_provider import get_llm_structured, get_llm
-
+from typing import Annotated
+from operator import add
 
 class AgentState(MessagesState):
     cv: str
-    jd: str
+    jds: Annotated[list, add]
     sender: str
     new_cv: str
     chat_history_summary: str = ""
     last_index: int = 0
-
+    jd: str
     
     
-
 class Memory(BaseModel):
     name: str | None = Field(
         default=None,
@@ -120,7 +120,8 @@ class CareerAgent:
         # Get messages not yet processed
         messages_to_process = state["messages"][state.get("last_index", 0):]
         if not messages_to_process:
-            return
+            print("no messages to extract")
+            return 
         conversation_str = "\n".join(f"{msg.type}: {msg.content}" for msg in messages_to_process)
 
         # current memory
@@ -140,10 +141,6 @@ class CareerAgent:
 
         {current_memory}
 
-        Here is a new conversation that may include updates or new details:
-
-        {conversation_str}
-
         Please extract or update the user's memory profile.
         Only fill in what you are confident about.
         Don't erase or fabricate information unless new data clearly overrides the old.
@@ -151,15 +148,15 @@ class CareerAgent:
         # Call LLM extractor
         extracted = extractor.invoke([
                 SystemMessage(extract_instruction),
-                HumanMessage("Go on")
+                HumanMessage(f"Here is a new conversation that may include updates or new details:\n {conversation_str} /no_think")
             ]
         )
-        print("extracted: ",extracted)
+        print("extracted: ", extracted)
         # Save extracted memory to store
         try: 
             store.put(namespace, "info" , extracted.model_dump_json())
         except Exception as error:
-            print(error)
+            print("error:", error)
             pass
         
         
@@ -175,14 +172,16 @@ class CareerAgent:
         new_last_index = last_index + len(messages_to_sum)
 
         current_summary = state.get("chat_history_summary", "")
-        model = get_llm()
+        
+        class SummarizeOutput(BaseModel):
+            updated_summary: str = Field(..., description="Tóm tắt đã được cập nhật sau khi bao gồm các messages mới")
+        model = get_llm_structured(SummarizeOutput)
 
-        updated_summary = model.invoke([
+        response = model.invoke([
             SystemMessage(self.memo_instruction.format(
                 current_memo=current_summary,
-                conversation=conversation_str
             )),
-            HumanMessage("Do it")
+            HumanMessage(f"Here is the new conversation to sum up: {conversation_str} /no_think")
         ])
 
         user_id = config["configurable"].get("user_id", "")
@@ -193,62 +192,51 @@ class CareerAgent:
                 store.put(namespace, m.id, {"data": f"{m.type}: {m.content}"})
 
         return Command(update={
-            "chat_history_summary": updated_summary.content,
+            "chat_history_summary": response.updated_summary,
             "last_index": new_last_index
         })
 
     def _main_agent(self, state, config: RunnableConfig, store):
         print("---CALL AGENT---")
+        
         last_index = state.get("last_index", 0)
         messages = state["messages"][last_index:]
         user_id = config["configurable"].get("user_id", "")
+        thread_memory = state.get("chat_history_summary", "")
+        cv = state.get("cv", "")
+        jd = state.get("jd", "")
         config["recursion_limit"] = 2
+            
 
-        if not messages:
-            return Command(update={"messages": [AIMessage("No message provided.")]}, goto=END)
-
-        if isinstance(messages[-1], ToolMessage):
-            try:
-                error = json.loads(messages[-1].content).get("error", "")
-                if error:
-                    return Command(update={"messages": [AIMessage(error)]}, goto=END)
-            except Exception:
-                pass
-
-        thread_memo = state.get("chat_history_summary", "")
-        if thread_memo:
-            print("memo:", thread_memo)
-
-        # model = get_llm(model = "Qwen/QwQ-32B")
-        model = get_llm()
+        model = get_llm(mode="think")
         model = model.bind_tools(self.tools)
 
-        
+
         namespace = ("user_info", user_id)
         try:
             user_info = store.get(namespace, "info")
             if user_info:
                 user_info = user_info.value
                 print("user_info:", user_info)
+            else:
+                print("no user info")
         except Exception:
             print("Fail to get user info")
             user_info = ""
 
-        response = model.invoke([
-            SystemMessage(self.agent_instruction.format(
+        system_prompt = self.agent_instruction.format(
                 tool_names="\n".join([f"{tool.name}: {tool.description}" for tool in self.tools]),
-                cv=state.get("cv", ""),
-                jd=state.get("jd", ""),
+                cv=cv,
+                jd=jd,
                 user_info=user_info,
-                thread_memory=thread_memo
-            ))
-        ] + messages)
+                thread_memory=thread_memory
+            )
         
-        print("cv: ", state.get("cv", "-------------")[:10])
-        print(response)
+        response = model.invoke([SystemMessage(system_prompt)] + messages)
+    
+        print("----", response.content[:50], "----")
         
-
-        return Command(update={"messages": [response], "sender": "agent"})
+        return response
     
     def setup_memory_and_store(self):
         conn = connect(self.pg_uri, autocommit=True)
@@ -269,8 +257,6 @@ You are summarization expert. Combine the current summary and the given conversa
 Remember to keep new summary short, brief in about 10-40 words, as short as possible.
 Here is the current summarization (it can be empty):
 {current_memo}
-Here is the conversation to sum up:
-{conversation}
 """.strip()
 
         self.agent_instruction = """
