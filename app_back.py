@@ -38,6 +38,11 @@ def show_component():
 
 # ======================== State Checking Functions ========================
 
+def get_jds(config):
+    """Return the latest CV content from state."""
+    jds = graph.get_state(config).values.get("jds", [])
+    return jds
+
 def get_latest_cv_text(config):
     """Return the latest CV content from state."""
     return graph.get_state(config).values.get("new_cv", "Not available")
@@ -62,7 +67,7 @@ def get_user_info_memory(config):
 
 def refresh_internal_state(config):
     """Update UI with new CV, thread summary, and user memory."""
-    return get_latest_cv_text(config), get_thread_summary(config), get_user_info_memory(config)
+    return get_latest_cv_text(config), get_thread_summary(config), get_user_info_memory(config), get_jds(config)
 
 # ======================== Config Initialization ========================
 
@@ -78,15 +83,18 @@ def initialize_config_and_ui(thread_id, user_id):
                 chat_history.append({"role": "user", "content": mess.content})
             elif isinstance(mess, AIMessage):
                 chat_history.append({"role": "assistant", "content": mess.content})
-        return chat_history, config, state.get("cv", "Not available"), state.get("new_cv", "Not available")
+        return chat_history, config
     else:
-        return "", config, "Not available", "Not available"
+        return "", config
 
 # ======================== Chat Handling ========================
 
 def handle_user_input(user_message, chat_history):
     """Add user text and uploaded file (if any) to chat history."""
     print("-u-")
+    
+
+        
     if user_message["files"]:
         file_content = extract_text_from_pdf(user_message["files"][0])
         return gr.MultimodalTextbox(value=None), chat_history + [
@@ -98,155 +106,146 @@ def handle_user_input(user_message, chat_history):
             {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
         ]
 
-def stream_bot_response(config, chat_history):
-    """Bot responds to last message; streams token-by-token for animation."""
-    print("-b-")
-    try:
-        last_message = chat_history[-1]
-
-        # Incase user upload file
-        if last_message["metadata"].get("title", ""):
-            state = {
-                "messages": [HumanMessage(chat_history[-2]["content"], id=chat_history[-2]["metadata"]["id"])],
-                "cv": last_message["content"],
-            }
-        else:
-            state = {
-                "messages": [HumanMessage(last_message["content"], id=last_message["metadata"]["id"])],
-            }
-
-        print(config)
-        
-        # Prepare for new messages
-        chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "",}})
-        
-        THINK_FLAG = False
-        for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
-            if metadata["langgraph_node"] == "agent":
-                
-                if msg.tool_calls and not msg.content: #call tool
-                    chat_history[-1]["metadata"]["title"] = f"Calling {', '.join(tool['name'] for tool in msg.tool_calls)}"
-                        
-                else: #response
-                    new_token = msg.content
-                    if new_token.strip() == "<think>":
-                        print("start thinking token")                
-                        THINK_FLAG = True
-                        chat_history[-1]["metadata"]["title"] = ""
-                        
-                    elif new_token.strip() == "</think>":
-                        print("end thinking token")                
-                        THINK_FLAG = False
-                        chat_history.append({"role": "assistant", "content": ""})
-                        
-                    else:                    
-                        if THINK_FLAG:    
-                            chat_history[-1]["metadata"]["title"] += new_token
-                        else:
-                            if chat_history[-1]["metadata"]["title"] == f"Considering tool response...":
-                                chat_history.append({"role": "assistant", "content": ""})
-                                
-                            chat_history[-1]["content"] += new_token
-                                    
-                    
-                    yield chat_history
-            
-            elif metadata["langgraph_node"] == "tools":
-                chat_history[-1]["metadata"]["title"] = f"Considering tool response..."
-            
-            else:
-                pass
-            
-            yield chat_history
-    
-    except Exception as e:
-        chat_history.append({"role": "assistant", 
-                            "content": f"Got error: {e}"})
-        yield chat_history
-        
-
-# def stream_bot_response_2(config, chat_history):
+# def stream_bot_response(config, chat_history):
 #     """Bot responds to last message; streams token-by-token for animation."""
 #     print("-b-")
 #     try:
 #         last_message = chat_history[-1]
 
+#         # Incase user upload file
 #         if last_message["metadata"].get("title", ""):
 #             state = {
-#                 "messages": [HumanMessage(chat_history[-2]["content"], id=chat_history[-2]["metadata"]["id"])],
+#                 "messages": [HumanMessage(chat_history[-2]["content"]+"\no_think", id=chat_history[-2]["metadata"]["id"])],
 #                 "cv": last_message["content"],
 #             }
 #         else:
 #             state = {
-#                 "messages": [HumanMessage(last_message["content"], id=last_message["metadata"]["id"])],
+#                 "messages": [HumanMessage(last_message["content"]+"\no_think", id=last_message["metadata"]["id"])],
 #             }
 
 #         print(config)
-#         for i, chunk in enumerate(graph.stream(state, config, stream_mode="updates")):
+        
+#         # Prepare for new messages
+#         chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "",}})
+        
+#         THINK_FLAG = False
+#         for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
+#             if metadata["langgraph_node"] == "agent":
+#                 print(i, msg)
+#                 if msg.tool_calls and not msg.content: #call tool
+#                     chat_history[-1]["metadata"]["title"] = f"Calling {', '.join(tool['name'] for tool in msg.tool_calls)}"
+                        
+#                 else: #response
+#                     new_token = msg.content
+#                     if new_token.strip() == "<think>":
+#                         print("start thinking token")                
+#                         THINK_FLAG = True
+#                         chat_history[-1]["metadata"]["title"] = ""
+                        
+#                     elif new_token.strip() == "</think>":
+#                         print("end thinking token")                
+#                         THINK_FLAG = False
+#                         chat_history.append({"role": "assistant", "content": ""})
+                        
+#                     else:                    
+#                         if THINK_FLAG:    
+#                             chat_history[-1]["metadata"]["title"] += new_token
+#                         else:
+#                             if chat_history[-1]["metadata"]["title"] == f"Considering tool response...":
+#                                 chat_history.append({"role": "assistant", "content": ""})
+                                
+#                             chat_history[-1]["content"] += new_token
+                                    
+                    
+#                     yield chat_history
             
-#             if chunk.get("tools", ""):
-#                 m = chunk["tools"]["messages"]
-#                 chat_history.append({"role": "assistant", 
-#                             "content": "", 
-#                             "metadata": {
-#                                 "title":f"Considering tool {', '.join(tool['name'] for tool in tool_calls)} response...",
-#                                 }})
-#                 yield chat_history
-                
-                
-#             if chunk.get("agent", ""):
-#                 m = chunk["agent"]["messages"][0]
-#                 if m.content: # response
-#                     think_content, say_content = split_content(m.content)
-                    
-                    
-#                     # -------- pseudo stream token -----------
-#                     chat_history.append({"role": "assistant", 
-#                             "content": "", 
-#                             "metadata": {
-#                                 "title": "", 
-#                                 "id": m.id
-#                                 }})
-#                     for char in think_content:
-#                         chat_history[-1]['metadata']["title"] += char
-#                         time.sleep(0.001)
-#                         yield chat_history
-#                     for char in say_content:
-#                         chat_history[-1]['content'] += char
-#                         time.sleep(0.001)
-#                         yield chat_history
-                        
-#                     # chat_history[-1] = {"role": "assistant", 
-#                     #         "content": "", 
-#                     #         "metadata": {
-#                     #             "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
-#                     #             "id": m.id
-#                     #             }}
-#                     return chat_history
-                        
-#                     # --------- return all message --------
-#                     # chat_history.append({"role": "assistant", 
-#                     #         "content": say_content, 
-#                     #         "metadata": {
-#                     #             "title": think_content, 
-#                     #             "id": m.id
-#                     #             }})
-#                     # yield chat_history
-                
-#                 else: #call tool
-#                     tool_calls = m.tool_calls
-#                     chat_history.append({"role": "assistant", 
-#                             "content": "", 
-#                             "metadata": {
-#                                 "title":f"Wait for response from {'  =>  '.join(tool['name'] for tool in tool_calls)}...",
-#                                 "id": m.id
-#                                 }})
-#                     yield chat_history 
+#             elif metadata["langgraph_node"] == "tools":
+#                 chat_history[-1]["metadata"]["title"] = f"Considering tool response..."
+            
+#             else:
+#                 pass
+            
+#             yield chat_history
+    
 #     except Exception as e:
 #         chat_history.append({"role": "assistant", 
 #                             "content": f"Got error: {e}"})
 #         yield chat_history
 
+import re
+from typing import Dict
+
+def split_message(text: str) -> Dict[str, str]:
+    # Tìm nội dung trong <think>...</think> ngay ở đầu
+    match = re.match(r'<think>(.*?)</think>(.*)', text, re.DOTALL)
+    
+    if match:
+        think_content = match.group(1).strip()
+        outside_content = match.group(2).strip()
+    else:
+        # Nếu không tìm thấy <think> thì coi toàn bộ là outside
+        think_content = ""
+        outside_content = text.strip()
+    
+    return think_content, outside_content
+
+            
+def stream_bot_response(config, chat_history, think):
+    """Bot responds to last message; streams token-by-token for animation."""
+    print("-b-")
+    
+    print(think)
+    if think:
+        add_in = " /think"
+    else:
+        add_in = " /no_think"
+        
+    # try:
+    last_message = chat_history[-1]
+
+    # Incase user upload file
+    if last_message["metadata"].get("title", ""):
+        state = {
+            "messages": [HumanMessage(chat_history[-2]["content"]+add_in, id=chat_history[-2]["metadata"]["id"])],
+            "cv": last_message["content"],
+        }
+    else:
+        state = {
+            "messages": [HumanMessage(last_message["content"]+add_in, id=last_message["metadata"]["id"])],
+        }
+
+    print(config)
+            
+    for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
+        if metadata["langgraph_node"] == "agent":
+            print(i, msg)
+            if msg.tool_calls and not msg.content: #call tool
+                for tool in msg.tool_calls:
+                    chat_history.append({"role": "assistant", "content": f"{tool['args']}", "metadata": {"title": f"Calling {tool['name']}"}})
+                    
+            else: #response
+                think_message, chat_message = split_message(msg.content)
+                if think_message:
+                    chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message}})
+                chat_history.append({"role": "assistant", "content": chat_message})
+                                            
+        elif metadata["langgraph_node"] == "tools":
+            print(i, msg)
+            
+            chat_history.append({"role": "assistant", "content": msg.content[:100]+"...", "metadata": {"title": f"Considering tool {msg.name} response..."}})
+                        
+        else:
+            print(i, metadata["langgraph_node"], msg)
+            pass
+        
+        yield chat_history
+    print("done app back")
+    
+    # except Exception as e:
+    #     chat_history.append({"role": "assistant", 
+    #                         "content": f"Got error: {e}"})
+    #     yield chat_history
+        
 
 def edit_message(history, edit_data: gr.EditData):
     """Edit a message in the chat UI."""

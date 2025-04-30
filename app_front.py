@@ -63,14 +63,28 @@ with gr.Blocks(fill_width=True) as demo:
             
             with gr.Column(scale=4, variant="compact"):
                 chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
-                msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
+                with gr.Row():
+                    THINK_FLAG = gr.Checkbox(label="Reasoning", scale=0)
+                    msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
     
         
     with gr.Tab("Underthehood") as tab2:
         with gr.Column():
             cross_thread_info = gr.Textbox(label="User Info (Cross Thread)", interactive=False, visible=True)
             single_thread_summary = gr.Textbox(label="Thread Summary", interactive=False, visible=True)
-
+        
+        gr.Markdown("# Recorded Job")
+        with gr.Column():
+            jds = gr.State([])
+            
+            @gr.render(inputs=jds)
+            def render_todos(jd_list):
+                for jd in jd_list:                    
+                    gr.Markdown(f"### {jd['id']} {jd['metadata']['workingtime']} {jd['metadata']['position']} [Job Link]({jd['metadata']['link']})", container=True)
+                    # gr.Textbox(label="Content", value = jd['page_content'][:200], show_label=False, container=False)
+                    
+            
+        
         with gr.Row():
             cv_text = gr.Textbox(label="CV Content", interactive=True, visible=True)
             new_cv_text = gr.Textbox(label="Reviewed CV", interactive=False, visible=True)
@@ -85,46 +99,49 @@ with gr.Blocks(fill_width=True) as demo:
     ############## ------------- FUNCTION HOOKS ------------- ##############
 
     demo.load(get_or_create_user_thread, [user_id], [thread_id, thread_choices_state]).\
-        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config])
 
     add_user.click(update_user_id_dropdown, [user_choices_state], [user_id, user_choices_state]).\
         then(get_or_create_user_thread, [user_id], [thread_id, thread_choices_state]).\
-        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config])
 
     add_thread.click(lambda choices: update_user_id_dropdown(choices), [thread_choices_state], [thread_id, thread_choices_state]).\
         then(lambda u, t: insert_user_thread_to_db(u, t), [user_id, thread_id]).\
-        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config]).\
+        then(refresh_internal_state, [config], [new_cv_text, single_thread_summary, cross_thread_info, jds])
 
     user_id.input(get_or_create_user_thread, [user_id], [thread_id, thread_choices_state]).\
         then(update_user_id_dropdown, [user_choices_state, user_id], [user_id, user_choices_state]).\
-        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+        then(initialize_config_and_ui, [thread_id, user_id], [chatbot, config])
 
-    thread_id.select(initialize_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+    thread_id.select(initialize_config_and_ui, [thread_id, user_id], [chatbot, config]).\
+        then(refresh_internal_state, [config], [new_cv_text, single_thread_summary, cross_thread_info, jds])
+        
 
     chatbot.edit(edit_message, chatbot, chatbot).\
         then(fork_message, [config, chatbot], [config]).\
-        then(stream_bot_response, [config, chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
         then(remove_checkpoint_from_config, [config], [config])
 
     msg.submit(handle_user_input, [msg, chatbot], [msg, chatbot]).\
-        then(stream_bot_response, [config, chatbot], [chatbot])
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot])
 
-    tab2.select(refresh_internal_state, [config], [new_cv_text, single_thread_summary, cross_thread_info])
+    tab2.select(refresh_internal_state, [config], [new_cv_text, single_thread_summary, cross_thread_info, jds])
 
     # Có thể thêm lại so sánh CV nếu muốn
     # new_cv_text.change(diff_texts, [cv_text, new_cv_text], [cp])
     
     ######################## ------------- TEST CASE ------------- #########################
     demo_upload_cv_and_search_button.click(demo_upload_cv_and_search_tool, [chatbot], [chatbot]).\
-        then(stream_bot_response, [config, chatbot], [chatbot]).\
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
             then(show_component, outputs=[demo_score_jds_button]).\
                 then(show_component, outputs=[demo_review_cv_button])
                 
     demo_search_by_query_button.click(demo_search_by_query_tool, [chatbot], [chatbot]).\
-        then(stream_bot_response, [config, chatbot], [chatbot])
-    demo_score_jds_button.click(demo_score_jds_tool, [chatbot], [chatbot]).\
-        then(stream_bot_response, [config, chatbot], [chatbot])
-    demo_review_cv_button.click(demo_review_cv_tool, [chatbot], [chatbot]).\
-        then(stream_bot_response, [config, chatbot], [chatbot])
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot])
+    demo_score_jds_button.click(demo_score_jds_tool, [chatbot, jds], [chatbot]).\
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot])
+    demo_review_cv_button.click(demo_review_cv_tool, [chatbot, jds], [chatbot]).\
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot])
 
 demo.launch(share=True)

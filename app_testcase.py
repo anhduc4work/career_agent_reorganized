@@ -73,14 +73,16 @@ def demo_search_by_query_tool(chat_history):
     )
     return chat_history
 
-def demo_score_jds_tool(chat_history):
+def demo_score_jds_tool(chat_history, available_job):
+    available_job_index = [job['id'] for job in available_job][:2]
     chat_history.append(
-        {"role": "user", "content": "Chấm điểm độ phù hợp của những công việc trên với cv của tôi", "metadata": {"id": str(uuid.uuid4())}},
+        {"role": "user", "content": f"Chấm điểm độ phù hợp của những công việc {available_job_index} với cv của tôi.", "metadata": {"id": str(uuid.uuid4())}},
     )
     return chat_history
 
-def demo_review_cv_tool(chat_history):
+def demo_review_cv_tool(chat_history, available_job):
+    available_job_index = [job['id'] for job in available_job][0]
     chat_history.append(
-        {"role": "user", "content": "Hãy chỉnh sửa cv của tôi để phù hợp hơn với mô tả công việc được chấm điểm thấp nhất, nếu chưa chấm điểm thì review với job đầu tiên", "metadata": {"id": str(uuid.uuid4())}},
+        {"role": "user", "content": f"Hãy chỉnh sửa cv của tôi để phù hợp hơn với mô tả công việc {available_job_index}.", "metadata": {"id": str(uuid.uuid4())}},
     )
     return chat_history
