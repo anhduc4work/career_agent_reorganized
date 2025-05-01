@@ -269,11 +269,11 @@ def stream_bot_response(config, chat_history, think):
                                             
         elif metadata["langgraph_node"] == "tools":
             print(i, "tools", msg)
-            
             if chat_history[-1].get('metadata', {}).get('title', '')[:7] == "Waiting":
                     chat_history = chat_history[:-1]
+            think_message, chat_message = split_message(msg.content)
                     
-            chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": f"Considering tool {msg.name} response...", "id": msg.id}})
+            chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"title": f"Considering tool {msg.name} response...", "id": msg.id}})
         
         elif metadata["langgraph_node"] in ["filter_&_summarize_messages", "extract_user_info"]:
             if not chat_history[-1].get('metadata', {}).get('title', '') in "Waiting":
