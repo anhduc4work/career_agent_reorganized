@@ -82,7 +82,7 @@ def summarize_agent(state):
     llm = get_llm()
     response = llm.invoke([
         SystemMessage(summarize_instruction),
-        HumanMessage(f"Here are the analyses: {jd_analysis}")
+        HumanMessage(f"Here are the analyses: {jd_analysis}. /no_think")
     ])
     # print("--response--", response)
     return Command(update = {"summary": response.content})
