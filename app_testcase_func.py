@@ -63,7 +63,7 @@ English - IELTS"""
 
 def demo_upload_cv_and_search_tool(chat_history):
     chat_history = chat_history + [
-            {"role": "user", "content": "Tìm cho tôi 2 công việc khớp với CV của tôi nhất.", "metadata": {"id": str(uuid.uuid4())}},
+            {"role": "user", "content": "Tìm cho tôi 2 công việc phù hợp CV của tôi nhất.", "metadata": {"id": str(uuid.uuid4())}},
             {"role": "user", "content": CV_CONTENT, "metadata": {"title": "File included", "id": str(uuid.uuid4())}},
         ]
     return chat_history

@@ -66,7 +66,7 @@ with gr.Blocks(fill_width=True) as demo:
             with gr.Column(scale=4, variant="compact"):
                 chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
                 with gr.Row():
-                    THINK_FLAG = gr.Checkbox(label="Reasoning", scale=0)
+                    THINK_FLAG = gr.Checkbox(label="No Thinking", scale=0)
                     msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
     
         

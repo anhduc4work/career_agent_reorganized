@@ -84,7 +84,14 @@ def initialize_config_and_ui(thread_id, user_id):
     if state:
         for mess in state["messages"]:
             if isinstance(mess, HumanMessage):
-                chat_history.append({"role": "user", "content": mess.content, "metadata" : {"id": mess.id}})
+                if mess.content.endswith('/no_think'):
+                    user_chat = mess.content[:-9]
+                elif mess.content.endswith('/think'):
+                    user_chat = mess.content[:-6]
+                else:
+                    user_chat = mess.content
+                    
+                chat_history.append({"role": "user", "content": user_chat, "metadata" : {"id": mess.id}})
             elif isinstance(mess, AIMessage):
                 if mess.tool_calls and not mess.content: #call tool
                     for tool in mess.tool_calls:
@@ -95,8 +102,6 @@ def initialize_config_and_ui(thread_id, user_id):
                     if think_message:
                         chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message, "id": mess.id}})
                     chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"id": mess.id}})
-                    
-                    chat_history.append({"role": "assistant", "content": mess.content, "metadata" : {"id": mess.id}})
                     
             elif isinstance(mess, ToolMessage):
                 chat_history.append({"role": "assistant", "content": str(mess.content)[:100] + "...", "metadata": {"title": f"Considering tool {mess.name} response...", "id": mess.id}})
@@ -191,9 +196,10 @@ def handle_user_input(user_message, chat_history):
 import re
 from typing import Dict
 
-def split_message(text: str) -> Dict[str, str]:
+def split_message(text: str) -> str:
     # Tìm nội dung trong <think>...</think> ngay ở đầu
     match = re.match(r'<think>(.*?)</think>(.*)', text, re.DOTALL)
+    print("input mess------", text)
     
     if match:
         think_content = match.group(1).strip()
@@ -202,6 +208,10 @@ def split_message(text: str) -> Dict[str, str]:
         # Nếu không tìm thấy <think> thì coi toàn bộ là outside
         think_content = ""
         outside_content = text.strip()
+    print("think------", think_content)
+    print("chat------", outside_content)
+    if outside_content.startswith('<think>'):
+        outside_content = outside_content[6:]
     
     return think_content, outside_content
 
@@ -212,9 +222,9 @@ def stream_bot_response(config, chat_history, think):
     
     print("think mode: ",think, "config", config)
     if think:
-        add_in = " /think"
-    else:
         add_in = " /no_think"
+    else:
+        add_in = " /think"
     
     print("chat_hist: ", chat_history)
     last_message = chat_history[-1]
@@ -249,11 +259,12 @@ def stream_bot_response(config, chat_history, think):
             else: #response
                 
                 think_message, chat_message = split_message(msg.content)
-                print(i, "agent message", think_message[:20], "----", chat_message[:20])
+                print(i, "agent message---")
                     
                 if think_message:
                     print("i did think")
                     chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message, "id": msg.id}})
+                
                 chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"id": msg.id}})
                                             
         elif metadata["langgraph_node"] == "tools":
@@ -279,7 +290,7 @@ def stream_bot_response(config, chat_history, think):
                 chat_history[-1]['metadata']['title'] = f"Waiting {metadata['langgraph_node']} {'.'*(i%10)}"
         
         yield chat_history
-    print("end")
+    print("end -b-")
     return chat_history
       # ----------------------- Stream mode :update ------------------      
         

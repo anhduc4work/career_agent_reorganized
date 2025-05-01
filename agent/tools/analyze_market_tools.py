@@ -60,18 +60,14 @@ class AnalyzeState(MessagesState):
 def get_jd(state):
     jds = vector_store.get_by_ids([str(i) for i in state["jd_indices"]])
     jds = [jd.page_content for jd in jds]
-    print('-----done get jd-----')
     return {"jds": jds}
 
 
 def router(state):
     """Route each JD into the extraction node"""
-    
     return [Send("extract", {"jd": jd}) for jd in state.get("jds", [])]
 
 def extract_agent(state): 
-    print('-----done router-----')
-    
     jd = state.get("jd", "")
     llm = get_llm_structured(JobCriteriaComparison)
     response = llm.invoke([
@@ -82,8 +78,6 @@ def extract_agent(state):
     return Command(update = {"jd_analysis": [response]})
 
 def summarize_agent(state):
-    print('-----done extracted-----')
-    
     jd_analysis = state['jd_analysis']
     llm = get_llm()
     response = llm.invoke([
@@ -117,19 +111,16 @@ def job_market_analysis(jd_indices: list[str], tool_call_id: Annotated[str, Inje
     helping users understand the current market landscape for a role.
 
     Note:
-        You must call `job_search_by_query` first to retrieve a list of related JD IDs.
-        For effective market analysis, provide at least 5 JD indices.
+        For effective market analysis, provide at least 5 JD indices. If not, use tool to find more.
 
     Args:
         jd_indices (list[str]): List of job description IDs to analyze. Minimum 5 recommended.
 
-    Returns:
-        A structured summary of job market trends based on the selected JDs.
     """
+        # You should call `job_search_by_query` first to retrieve a list of related JD IDs.
     print("--tool: compare_jobs--")
     response = analyze_agent.invoke({"jd_indices": jd_indices})
     
-    print('-----done response-----')
     
     return Command(
         update={

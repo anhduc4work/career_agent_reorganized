@@ -245,7 +245,7 @@ class CareerAgent:
                 thread_memory=thread_memory
             )
         
-        print("last", messages[-1])
+        # print("last", messages[-1])
         response = model.invoke([SystemMessage(system_prompt)]+ messages)
     
         print("----", response.content[:50], "----")

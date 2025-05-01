@@ -79,7 +79,6 @@ def job_search_by_query(
     Search for job descriptions (JDs) relevant to a given job title or query.
 
     This tool finds related job descriptions based on keyword similarity and optional filters.
-    It is typically used as a first step before deeper analysis such as job market trends.
 
     Args:
         job (str): Job search query (e.g., job title or relevant keywords).
@@ -132,7 +131,6 @@ def job_search_by_cv(
     Search for jobs based on the content of a CV, with optional filters.
 
     Args:
-
         k (int, optional): The number of top results to return. Defaults to 3.
         job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, negotiation).
         position (Optional[Position], optional): Filter by job position.

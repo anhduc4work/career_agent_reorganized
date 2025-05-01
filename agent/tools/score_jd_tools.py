@@ -178,6 +178,8 @@ def score_jobs(jd_index: list[str], cv: Annotated[str, InjectedState("cv")], too
     """
     print("--tool6: score--")
     # jd_index = [str(i) for i in jd_index]
+    if not cv:
+        raise "This tool can be executed because curriculum vitae is not uploaded yet"
     response = score_agent.invoke({"jd_indices": jd_index, "cv": cv})
     # return response
     
