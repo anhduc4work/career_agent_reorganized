@@ -15,8 +15,18 @@ class Feedback(BaseModel):
     solution: str = Field(description="The solution to the issue identified by the human reviewer")
     criteria: str = Field(description="The criteria used to evaluate the CV")
 
+    def __str__(self):
+        return (
+            f"Criteria: {self.criteria}\n"
+            f"Issue: {self.issue}\n"
+            f"Solution: {self.solution}\n"
+        )
+        
 class Feedbacks(BaseModel):
     feedbacks: list[Feedback] = Field(description="The feedbacks from the human reviewers")
+    
+    def __str__(self):
+        return "\n---\n".join(str(fb) for fb in self.feedbacks)
 
 class ReviewedCV(BaseModel):
     new_cv: str = Field(description="The new suitable CV after reviewing the candidate's current CV")
@@ -82,6 +92,7 @@ Instructions:
 - Keep the CV concise, impactful, and professional.
 - Ensure at least 5 major improvements.
 - Never fabricate info—enhance existing content only.
+- Return output in markdown form, remember to highlight changes by green color markdown
 """
 
 # --------------------------- AGENT NODES ---------------------------
@@ -175,7 +186,8 @@ def review_cv(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_call
 
     return Command(
         update={
-            "messages": [ToolMessage(result, tool_call_id=tool_call_id)],
-            "new_cv": result.get("new_cv", "")
+            "messages": [ToolMessage("Succesfully review", tool_call_id=tool_call_id)],
+            "new_cv": result.get("new_cv", ""),
+            "cv_reviews": result.get("review", "")
         }
     )

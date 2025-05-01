@@ -43,9 +43,13 @@ def get_jds(config):
     jds = graph.get_state(config).values.get("jds", [])
     return jds
 
-def get_latest_cv_text(config):
+def get_reviewed_cv_text(config):
     """Return the latest CV content from state."""
     return graph.get_state(config).values.get("new_cv", "Not available")
+
+def get_uploaded_cv_text(config):
+    """Return the latest CV content from state."""
+    return graph.get_state(config).values.get("cv", "Not available")
 
 def get_thread_summary(config):
     """Return the summarized chat history from state."""
@@ -67,7 +71,7 @@ def get_user_info_memory(config):
 
 def refresh_internal_state(config):
     """Update UI with new CV, thread summary, and user memory."""
-    return get_latest_cv_text(config), get_thread_summary(config), get_user_info_memory(config), get_jds(config)
+    return get_uploaded_cv_text(config), get_reviewed_cv_text(config), get_thread_summary(config), get_user_info_memory(config), get_jds(config)
 
 # ======================== Config Initialization ========================
 
@@ -80,9 +84,23 @@ def initialize_config_and_ui(thread_id, user_id):
     if state:
         for mess in state["messages"]:
             if isinstance(mess, HumanMessage):
-                chat_history.append({"role": "user", "content": mess.content})
+                chat_history.append({"role": "user", "content": mess.content, "metadata" : {"id": mess.id}})
             elif isinstance(mess, AIMessage):
-                chat_history.append({"role": "assistant", "content": mess.content})
+                if mess.tool_calls and not mess.content: #call tool
+                    for tool in mess.tool_calls:
+                        chat_history.append({"role": "assistant", "content": f"{tool['args']}", "metadata": {"title": f"Calling {tool['name']}", "id": mess.id}})
+                        
+                else: #response
+                    think_message, chat_message = split_message(mess.content)
+                    if think_message:
+                        chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message, "id": mess.id}})
+                    chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"id": mess.id}})
+                    
+                    chat_history.append({"role": "assistant", "content": mess.content, "metadata" : {"id": mess.id}})
+                    
+            elif isinstance(mess, ToolMessage):
+                chat_history.append({"role": "assistant", "content": str(mess.content)[:100] + "...", "metadata": {"title": f"Considering tool {mess.name} response...", "id": mess.id}})
+                
         return chat_history, config
     else:
         return "", config
@@ -92,17 +110,15 @@ def initialize_config_and_ui(thread_id, user_id):
 def handle_user_input(user_message, chat_history):
     """Add user text and uploaded file (if any) to chat history."""
     print("-u-")
-    
-
         
     if user_message["files"]:
         file_content = extract_text_from_pdf(user_message["files"][0])
-        return gr.MultimodalTextbox(value=None), chat_history + [
+        return gr.MultimodalTextbox(value=None, interactive=False), chat_history + [
             {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
             {"role": "user", "content": file_content, "metadata": {"title": "File included", "id": str(uuid.uuid4())}},
         ]
     else:
-        return gr.MultimodalTextbox(value=None), chat_history + [
+        return gr.MultimodalTextbox(value=None, interactive=False), chat_history + [
             {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
         ]
 
@@ -194,57 +210,82 @@ def stream_bot_response(config, chat_history, think):
     """Bot responds to last message; streams token-by-token for animation."""
     print("-b-")
     
-    print(think)
+    print("think mode: ",think, "config", config)
     if think:
         add_in = " /think"
     else:
         add_in = " /no_think"
-        
-    # try:
+    
+    print("chat_hist: ", chat_history)
     last_message = chat_history[-1]
-
-    # Incase user upload file
-    if last_message["metadata"].get("title", ""):
-        state = {
-            "messages": [HumanMessage(chat_history[-2]["content"]+add_in, id=chat_history[-2]["metadata"]["id"])],
-            "cv": last_message["content"],
+    print("lastmess", last_message)
+    try:
+        if last_message["metadata"].get("title", ""):
+            state = {
+                "messages": [HumanMessage(chat_history[-2]["content"]+add_in, id=chat_history[-2]["metadata"]["id"])],
+                "cv": last_message["content"],
+            }
+        else:
+            state = {
+            "messages": [HumanMessage(last_message["content"]+add_in, id=last_message["metadata"]["id"])],
         }
-    else:
+    except Exception:
         state = {
             "messages": [HumanMessage(last_message["content"]+add_in, id=last_message["metadata"]["id"])],
         }
-
-    print(config)
-            
+      
+    #   ----------------------- Stream mode ------------------      
     for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
         if metadata["langgraph_node"] == "agent":
-            print(i, msg)
+            
+            if chat_history[-1].get('metadata', {}).get('title', '')[:7] == "Waiting":                
+                    chat_history = chat_history[:-1]
+                    
             if msg.tool_calls and not msg.content: #call tool
+                print(i, "agent call tool", msg)
                 for tool in msg.tool_calls:
-                    chat_history.append({"role": "assistant", "content": f"{tool['args']}", "metadata": {"title": f"Calling {tool['name']}"}})
+                    chat_history.append({"role": "assistant", "content": f"{tool['args']}", "metadata": {"title": f"Calling {tool['name']}", "id": msg.id}})
                     
             else: #response
+                
                 think_message, chat_message = split_message(msg.content)
+                print(i, "agent message", think_message[:20], "----", chat_message[:20])
+                    
                 if think_message:
-                    chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message}})
-                chat_history.append({"role": "assistant", "content": chat_message})
+                    print("i did think")
+                    chat_history.append({"role": "assistant", "content": "", "metadata": {"title": think_message, "id": msg.id}})
+                chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"id": msg.id}})
                                             
         elif metadata["langgraph_node"] == "tools":
-            print(i, msg)
+            print(i, "tools", msg)
             
-            chat_history.append({"role": "assistant", "content": msg.content[:100]+"...", "metadata": {"title": f"Considering tool {msg.name} response..."}})
-                        
+            if chat_history[-1].get('metadata', {}).get('title', '')[:7] == "Waiting":
+                    chat_history = chat_history[:-1]
+                    
+            chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": f"Considering tool {msg.name} response...", "id": msg.id}})
+        
+        elif metadata["langgraph_node"] in ["filter_&_summarize_messages", "extract_user_info"]:
+            if not chat_history[-1].get('metadata', {}).get('title', '') in "Waiting":
+                chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "Waiting"}})
+            else:
+                chat_history[-1]['metadata']['title'] = f"Waiting memory updates {'.'*(i%10)}"
+
         else:
-            print(i, metadata["langgraph_node"], msg)
-            pass
+            # print("damn", metadata["langgraph_node"], msg)
+            
+            if not chat_history[-1].get('metadata', {}).get('title', '')[:7] == "Waiting":
+                chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "Waiting"}})
+            else:
+                chat_history[-1]['metadata']['title'] = f"Waiting {metadata['langgraph_node']} {'.'*(i%10)}"
         
         yield chat_history
-    print("done app back")
-    
-    # except Exception as e:
-    #     chat_history.append({"role": "assistant", 
-    #                         "content": f"Got error: {e}"})
-    #     yield chat_history
+    print("end")
+    return chat_history
+      # ----------------------- Stream mode :update ------------------      
+        
+    # for i, msg in enumerate(graph.invoke(state, config, stream_mode="update")):
+    #     print(i, msg)
+
         
 
 def edit_message(history, edit_data: gr.EditData):

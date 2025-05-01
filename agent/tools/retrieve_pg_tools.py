@@ -51,14 +51,17 @@ def get_vector_store():
 vector_store = get_vector_store()
 import json
 
-def documents_to_json(documents):
+
+def documents_to_json(documents, include_content: bool = True):
     result = []
     for doc in documents:
-        result.append({
+        item = {
             "id": str(doc.id) if hasattr(doc, "id") else None,
-            "metadata": doc.metadata,
-            "page_content": doc.page_content
-        })
+            "metadata": doc.metadata
+        }
+        if include_content:
+            item["page_content"] = doc.page_content
+        result.append(item)
     return result
 
 # ---------------------------- TOOLS ----------------------------
@@ -67,24 +70,33 @@ def documents_to_json(documents):
 def job_search_by_query(
     job: str, 
     tool_call_id: Annotated[str, InjectedToolCallId],
+    include_content: bool = True,
     k: int = 3,
     job_type: Optional[JobType] = None,
     position: Optional[Position] = None,
-    
 ) -> list[str]:
     """
-    Search for jobs based on a text query, with optional filters.
+    Search for job descriptions (JDs) relevant to a given job title or query.
+
+    This tool finds related job descriptions based on keyword similarity and optional filters.
+    It is typically used as a first step before deeper analysis such as job market trends.
 
     Args:
-        job (str): The job search query (keywords, topics, etc.).
-        k (int, optional): The number of top results to return. Defaults to 3.
-        job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, negotiation).
-        position (Optional[Position], optional): Filter by job position.
-
+        job (str): Job search query (e.g., job title or relevant keywords).
+        include_content (bool): Whether to return full JD content. Set to False if content is not needed (e.g., for market analysis). Defaults to True.
+        k (int, optional): Number of top matching jobs to return. Defaults to 3.
+        job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, etc.).
+        position (Optional[Position], optional): Filter by job level (e.g., junior, senior).
+    
     Returns:
-        list[str]: A list of job descriptions matching the query and filters.
+        list: List of job IDs matching the query.
+
+    Tip:
+        For market analysis, set k >= 5 to retrieve enough samples for meaningful insights.
     """
+    
     print("--tool: job_search_by_query--")
+    
     filters = {}
     if job_type:
         filters["workingtime"] = job_type.value
@@ -101,7 +113,7 @@ def job_search_by_query(
     )
     # Format result: 
     output = retriever.invoke(job)
-    formated_response = documents_to_json(output)
+    formated_response = documents_to_json(output, include_content)
     
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
                                                     tool_call_id=tool_call_id)], "jds": formated_response})
@@ -112,6 +124,7 @@ def job_search_by_cv(
     cv: Annotated[str, InjectedState("cv")],
     tool_call_id: Annotated[str, InjectedToolCallId],
     k: int = 3,
+    include_content: Optional[bool] = True,
     job_type: Optional[JobType] = None,
     position: Optional[Position] = None,
 ) -> list[str]:
@@ -119,13 +132,12 @@ def job_search_by_cv(
     Search for jobs based on the content of a CV, with optional filters.
 
     Args:
+
         k (int, optional): The number of top results to return. Defaults to 3.
         job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, negotiation).
         position (Optional[Position], optional): Filter by job position.
-
-    Returns:
-        list[str]: A list of job descriptions matching the CV content and filters.
     """
+    
     print("--tool: job_search_by_cv--")
     print(k, job_type, position)
 
@@ -144,7 +156,7 @@ def job_search_by_cv(
         }
     )
     output = retriever.invoke(cv)
-    formated_response = documents_to_json(output)
+    formated_response = documents_to_json(output, include_content)
     
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
                                                     tool_call_id=tool_call_id)], "jds": formated_response})

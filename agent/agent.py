@@ -14,6 +14,7 @@ from .llm_provider import get_llm_structured, get_llm
 from typing import Annotated
 from operator import add
 
+
 class AgentState(MessagesState):
     cv: str
     jds: Annotated[list, add]
@@ -22,6 +23,7 @@ class AgentState(MessagesState):
     chat_history_summary: str = ""
     last_index: int = 0
     jd: str
+    cv_reviews: str | list | dict
     
     
 class Memory(BaseModel):
@@ -99,10 +101,14 @@ class CareerAgent:
         all_messages = state["messages"]
         last_index = state.get("last_index") or 0
         not_sum_messages = all_messages[last_index:]
+        print("router msg", len(all_messages), "not sum", len(not_sum_messages), "indez", last_index)
 
+        print("all messages: ", [m.content for m in all_messages])
         WINDOWSIZE = 6
         MINNEWMESSAGESALLOW = 4
-
+        
+        yield Command(goto="agent")
+        
         if len(not_sum_messages) >= MINNEWMESSAGESALLOW + WINDOWSIZE:
             yield [Command(goto="extract_user_info"), Command(goto="filter_&_summarize_messages")]
 
@@ -201,15 +207,22 @@ class CareerAgent:
         
         last_index = state.get("last_index", 0)
         messages = state["messages"][last_index:]
+        print("len msgs: ", len(messages))
         user_id = config["configurable"].get("user_id", "")
         thread_memory = state.get("chat_history_summary", "")
         cv = state.get("cv", "")
         jd = state.get("jd", "")
         config["recursion_limit"] = 2
+        
+        if isinstance(messages[-1], ToolMessage):
+            if messages[-1].name == "review_cv":
+                reviews = "\n".join([f"{i+1}. {fb.criteria}: {fb.issue}\n\tSolution: {fb.solution}" for i, fb in enumerate(state['cv_reviews'])])
+                response =  f"Here is the suggestion:\n {reviews} \nHere is the reviewed cv:\n {state['new_cv']}"
+                return Command(update={"messages": [AIMessage(response)]}, goto=END)
             
 
         model = get_llm(mode="think")
-        model = model.bind_tools(self.tools)
+        model = model.bind_tools(self.tools) # cause non streaming
 
 
         namespace = ("user_info", user_id)
@@ -225,18 +238,19 @@ class CareerAgent:
             user_info = ""
 
         system_prompt = self.agent_instruction.format(
-                tool_names="\n".join([f"{tool.name}: {tool.description}" for tool in self.tools]),
+                # tool_names="\n".join([f"{tool.name}: {tool.description}" for tool in self.tools]),
                 cv=cv,
                 jd=jd,
                 user_info=user_info,
                 thread_memory=thread_memory
             )
         
-        response = model.invoke([SystemMessage(system_prompt)] + messages)
+        print("last", messages[-1])
+        response = model.invoke([SystemMessage(system_prompt)]+ messages)
     
         print("----", response.content[:50], "----")
         
-        return response
+        return Command(update = {"messages": [response]})
     
     def setup_memory_and_store(self):
         conn = connect(self.pg_uri, autocommit=True)
@@ -253,30 +267,30 @@ class CareerAgent:
 
     def build(self):
         self.memo_instruction = """
-You are summarization expert. Combine the current summary and the given conversation into only brief summary.
-Remember to keep new summary short, brief in about 10-40 words, as short as possible.
-Here is the current summarization (it can be empty):
-{current_memo}
-""".strip()
+        You are summarization expert. Combine the current summary and the given conversation into only brief summary.
+        Remember to keep new summary short, brief in about 10-40 words, as short as possible.
+        Here is the current summarization (it can be empty):
+        {current_memo}
+        """.strip()
 
         self.agent_instruction = """
-You are a helpful AI assistant, collaborating with other assistants.
-Use the provided tools to progress towards answering the question.
-If you are unable to fully answer, that's OK, another assistant with different tools 
-will help where you left off. Execute what you can to make progress.
-If you or any of the other assistants have the final answer or deliverable,
-prefix your response with FINAL ANSWER so the team knows to stop.
-You should return data in table markdown for easily interpretation (for task relating comparation)
-You have access to the following tools: 
-{tool_names}
-Here is the content of curriculum vitate of user (this is empty when user haven't uploaded it yet):
-{cv}
-Here is the content of job description that user mannually upload (this can be empty is they haven't upload):
-{jd}
-Here is your summary of recent chat with user: {thread_memory}
-Here is your memory (it may be empty): {user_info}
-If you have memory for this user, use it to personalize your responses.
-""".strip()
+        You are a helpful AI assistant, collaborating with other assistants.
+        Use the provided tools to progress towards answering the question.
+        If you are unable to fully answer, that's OK, another assistant with different tools 
+        will help where you left off. Execute what you can to make progress.
+        If you or any of the other assistants have the final answer or deliverable,
+        prefix your response with FINAL ANSWER so the team knows to stop.
+        You should return data in table markdown for easily interpretation (for task relating comparation)
+        Here is the content of curriculum vitate of user (this is empty when user haven't uploaded it yet):
+        {cv}
+        Here is the content of job description that user mannually upload (this can be empty is they haven't upload):
+        {jd}
+        Here is your summary of recent chat with user: 
+        {thread_memory}
+        Here is your memory (it may be empty): 
+        {user_info}
+        If you have memory for this user, use it to personalize your responses.
+        """.strip()
 
         workflow = StateGraph(AgentState)
         workflow.add_node("router", self._router)
@@ -286,7 +300,6 @@ If you have memory for this user, use it to personalize your responses.
         workflow.add_node("tools", self.tool_node)
 
         workflow.set_entry_point("router")
-        workflow.add_edge("router", "agent")
         workflow.add_conditional_edges("agent", tools_condition)
         workflow.add_edge("tools", "agent")
 

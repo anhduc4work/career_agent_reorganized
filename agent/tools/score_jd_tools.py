@@ -5,6 +5,11 @@ import operator
 from langgraph.constants import Send
 from pydantic import BaseModel, Field, model_validator
 from agent.tools.retrieve_pg_tools import vector_store
+from langchain_core.tools.base import InjectedToolCallId
+from langchain_core.tools import tool
+from langgraph.types import Command
+from langgraph.prebuilt import InjectedState
+
 # Import LLM model and prompts from external module
 from agent.llm_provider import get_llm_structured
 
@@ -49,6 +54,7 @@ Only refer to information available in the analysis. Be concise and insightful.
 
 # ---------------------------- SCHEMA ----------------------------
 class CVJDMatchFeedback(BaseModel):
+    id: int = Field(..., description="Job index")
     job_title_relevance:     int = Field(..., ge=0, le=10, description="Score (0-10): How well does the candidate's experience align with the job title?")
     years_of_experience:     int = Field(..., ge=0, le=10, description="Score (0-10): Does the candidate have sufficient experience for the position?")
     required_skills_match:   int = Field(..., ge=0, le=10, description="Score (0-10): To what extent does the candidate possess the skills listed in the JD?")
@@ -70,62 +76,82 @@ class CVJDMatchFeedback(BaseModel):
         ) / 6, 2)
         return self
 
+def format_cvjd_feedback_list(feedback_list: list[CVJDMatchFeedback]) -> str:
+    output = []
+    for fb in feedback_list:
+        text = f"""\
+        Job Index {fb.id}:
+        - 🧠 Job Title Relevance:       {fb.job_title_relevance}/10
+        - 📆 Years of Experience:       {fb.years_of_experience}/10
+        - 🛠️ Required Skills Match:     {fb.required_skills_match}/10
+        - 🎓 Education & Certification: {fb.education_certification}/10
+        - 📂 Project Work History:      {fb.project_work_history}/10
+        - 💬 Soft Skills & Language:    {fb.softskills_language}/10
+        - ⭐ Overall Fit Score:          {fb.overall_fit_score}/10
+
+        📝 Comment: {fb.overall_comment}
+        """
+        
+        output.append(text)
+    return "\n".join(output)
+
 class ScoreSummary(BaseModel):
     summary: str = Field(..., description="A concise summary of the JD scoring analysis.")
 
 # ---------------------------- GRAPH STATE ----------------------------
 class ScoreState(MessagesState):
     cv: str
-    jd: str
+    jd_index: str
     jds: List[str]
-    jd_analysis: Annotated[list, operator.add]
-    jd_index: List[str]
+    scored_jds: Annotated[list | list[CVJDMatchFeedback], operator.add]
+    jd_indices: List[str]
+    
 
 
 # ---------------------------- AGENT LOGIC ----------------------------
 def do_nothing(state):
-    """Do nothing but setup for router"""
-    jds = vector_store.get_by_ids([str(i) for i in state["jd_index"]])
-    jds = [jd.page_content for jd in jds]
-    print(jds)
-    return {"jds": jds}
+    pass
 
 def router(state):
     print("--router--")
-    # print(type(state.get("jds", [])),state.get("jds", []))
-    return [Send("score", {"jd": jd}) for jd in state.get("jds", [])]
+    return [Send("score", {"jd_index": id, "cv": state["cv"]}) for id in state.get("jd_indices", [])]
 
-def score_agent(state):
+def score_agent(state): #: Annotated[ScoreState, InjectedState]):
     print("--score--")
-    jd = state.get("jd", "")
+    
+    jd = vector_store.get_by_ids([state["jd_index"]])[0].page_content
     cv = state.get("cv", "")
+    
     llm = get_llm_structured(CVJDMatchFeedback)
     response = llm.invoke([
         SystemMessage(score_instruction.format(cv=cv, jd=jd)),
-        HumanMessage("Conduct scoring. /no_think")
+        HumanMessage(f"Conduct scoring job {state['jd_index']}. /no_think")
     ])
-    return {"jd_analysis": [response]}
+    print(type(response), "response from score",  response)
+    print("state", state)
+    return {"scored_jds": [response]}
 
 def summarize_score_agent(state):
     print("--summa--")
-    jd_analysis = state.get("jd_analysis", [])
-    llm = get_llm_structured(ScoreSummary)
-    response = llm.invoke([
-        SystemMessage(summary_instruction),
-        HumanMessage(f"Here are the analyses of jobs: {jd_analysis}. /no_think")
-    ])
-    return response
+    # jd_analysis = state.get("scored_jds", [])
+    
+    # llm = get_llm_structured(ScoreSummary)
+    # response = llm.invoke([
+    #     SystemMessage(summary_instruction),
+    #     HumanMessage(f"Here are the analyses of jobs: {jd_analysis}. /no_think")
+    # ])
+    pass
 
 # ---------------------------- GRAPH ----------------------------
 
 def build_score_graph() -> StateGraph:
     score_graph = StateGraph(ScoreState)
-    score_graph.add_node("init", do_nothing)
+    score_graph.add_node("do_nothing", do_nothing)
     score_graph.add_node("score", score_agent)
     score_graph.add_node("summarize", summarize_score_agent)
 
-    score_graph.set_entry_point("init")
-    score_graph.add_conditional_edges("init", router, ["score"])
+    score_graph.set_entry_point("do_nothing")
+    score_graph.add_conditional_edges("do_nothing", router, ["score"])    
     score_graph.add_edge("score", "summarize")
     score_graph.set_finish_point("summarize")
 
@@ -133,22 +159,35 @@ def build_score_graph() -> StateGraph:
 
 score_agent = build_score_graph()
 
+
+
+
 # ---------------------------- TOOL ----------------------------
 from langgraph.prebuilt import InjectedState
 from langchain_core.tools import tool
 @tool
-def score_jobs(jd_index: list[int], cv: Annotated[str, InjectedState("cv")]):
+def score_jobs(jd_index: list[str], cv: Annotated[str, InjectedState("cv")], tool_call_id: Annotated[str, InjectedToolCallId]):
     """
     Evaluate how well a given CV matches a list of job descriptions (JDs) by scoring each JD individually.
 
     Args:
-        jd_index (list[int]): List of indices identifying the job descriptions to compare against the CV.
-        cv (str): The candidate's CV, automatically injected from application state.
+        jd_index (list[str]): List of indices identifying the job descriptions to compare against the CV.
 
     Returns:
         dict: A structured summary that includes evaluation scores and comments highlighting the candidate's fit across all selected JDs.
     """
     print("--tool6: score--")
-    jd_index = [str(i) for i in jd_index]
-    response = score_agent.invoke({"jd_index": jd_index, "cv": cv})
-    return response
+    # jd_index = [str(i) for i in jd_index]
+    response = score_agent.invoke({"jd_indices": jd_index, "cv": cv})
+    # return response
+    
+    print("length: ", len(response['scored_jds']))
+    formated_response = format_cvjd_feedback_list(response['scored_jds'])
+    print("formated:", format)
+    return Command(
+        update={
+            "messages": [ToolMessage(formated_response, tool_call_id=tool_call_id)],
+            # "new_cv": response.get("new_cv", ""),
+            # "cv_reviews": response.get("review", "")
+        }
+    )

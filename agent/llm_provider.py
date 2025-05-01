@@ -12,7 +12,7 @@ default_model = os.environ.get("DEFAULT_MODEL", "qwen3:8b")
 def get_llm(
     model: Literal["qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
     mode: Literal["think", "non-think"] = "non-think",
-    **kwargs
+    num_ctx = 16384
 ) -> BaseChatModel:
     """
     Return a configured ChatOllama model.
@@ -39,9 +39,10 @@ def get_llm(
             temperature=temperature,
             top_p=top_p,
             top_k=20,
-            repeat_penalty=0.5,
-            **kwargs
+            repeat_penalty=1.1,
+            num_ctx = num_ctx,
         )
+
         return llm
 
     except Exception as e:

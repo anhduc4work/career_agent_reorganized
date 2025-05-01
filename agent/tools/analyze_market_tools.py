@@ -1,12 +1,16 @@
 from typing import List, Annotated
 from langgraph.graph import StateGraph, MessagesState
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langgraph.constants import Send
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import operator
+from agent.tools.retrieve_pg_tools import vector_store
+from langchain_core.tools.base import InjectedToolCallId
+from langgraph.types import Command
+ 
 
-from agent.llm_provider import get_llm_structured
+from agent.llm_provider import get_llm_structured, get_llm
 
 # ---------------------------- PROMPTS ----------------------------
 analyze_instruction = """You are an AI assistant helping users analyze job descriptions.
@@ -49,42 +53,55 @@ class AnalyzeState(MessagesState):
     jd: str
     jds: List[str]
     jd_analysis: Annotated[list, operator.add]
+    jd_indices: list
+    summary: str
 
 # ---------------------------- AGENT LOGIC ----------------------------
-def do_nothing(state):
-    """No-op for initializing state"""
-    pass
+def get_jd(state):
+    jds = vector_store.get_by_ids([str(i) for i in state["jd_indices"]])
+    jds = [jd.page_content for jd in jds]
+    print('-----done get jd-----')
+    return {"jds": jds}
+
 
 def router(state):
     """Route each JD into the extraction node"""
+    
     return [Send("extract", {"jd": jd}) for jd in state.get("jds", [])]
 
-def extract_agent(state):
+def extract_agent(state): 
+    print('-----done router-----')
+    
     jd = state.get("jd", "")
     llm = get_llm_structured(JobCriteriaComparison)
     response = llm.invoke([
         SystemMessage(analyze_instruction.format(jd=jd)),
         HumanMessage("Conduct extraction")
     ])
-    return {"jd_analysis": [response]}
+    
+    return Command(update = {"jd_analysis": [response]})
 
 def summarize_agent(state):
-    jd_analysis = state.get("jd_analysis", [])
-    llm = get_llm_structured(str)
+    print('-----done extracted-----')
+    
+    jd_analysis = state['jd_analysis']
+    llm = get_llm()
     response = llm.invoke([
         SystemMessage(summarize_instruction),
         HumanMessage(f"Here are the analyses: {jd_analysis}")
     ])
-    return {"messages": [response]}
+    # print("--response--", response)
+    return Command(update = {"summary": response.content})
 
 # ---------------------------- GRAPH ----------------------------
 analyze_graph = StateGraph(AnalyzeState)
-analyze_graph.add_node("_init", do_nothing)
+analyze_graph.add_node("get_jd", get_jd)
 analyze_graph.add_node("extract", extract_agent)
 analyze_graph.add_node("summarize", summarize_agent)
 
-analyze_graph.set_entry_point("_init")
-analyze_graph.add_conditional_edges("_init", router, ["extract"])
+analyze_graph.set_entry_point("get_jd")
+analyze_graph.add_conditional_edges("get_jd", router, ["extract"])
+
 analyze_graph.add_edge("extract", "summarize")
 analyze_graph.set_finish_point("summarize")
 
@@ -92,12 +109,33 @@ analyze_agent = analyze_graph.compile()
 
 # ---------------------------- TOOL ----------------------------
 @tool
-def compare_jobs_tool(jds: list[str]):
+def job_market_analysis(jd_indices: list[str], tool_call_id: Annotated[str, InjectedToolCallId]):
     """
-    Analyze and summarize a list of job descriptions (JDs) for the same job title.
+    Analyze and summarize a set of job descriptions (JDs) for a given job title.
+
+    This tool extracts patterns, skill requirements, and trends from multiple job descriptions,
+    helping users understand the current market landscape for a role.
+
+    Note:
+        You must call `job_search_by_query` first to retrieve a list of related JD IDs.
+        For effective market analysis, provide at least 5 JD indices.
+
+    Args:
+        jd_indices (list[str]): List of job description IDs to analyze. Minimum 5 recommended.
 
     Returns:
-        A structured summary highlighting patterns, differences, and trends from the provided JDs.
+        A structured summary of job market trends based on the selected JDs.
     """
     print("--tool: compare_jobs--")
-    return analyze_agent.invoke({"jds": jds})
+    response = analyze_agent.invoke({"jd_indices": jd_indices})
+    
+    print('-----done response-----')
+    
+    return Command(
+        update={
+            "messages": [ToolMessage(response['summary'], tool_call_id=tool_call_id)],
+            # "job_analysis": response.jd_analysis
+            # "new_cv": response.get("new_cv", ""),
+            # "cv_reviews": response.get("review", "")
+        }
+    )

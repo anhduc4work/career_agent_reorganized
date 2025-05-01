@@ -1,5 +1,5 @@
 import uuid
-
+import gradio as gr
 
 CV_CONTENT = """ AI Engineer
 A highly motivated student with a strong passion for AI, backed by a solid foundation in mathematics,
@@ -60,6 +60,7 @@ Frameworks: Pytorch
 Languages
 Chinese - Basic
 English - IELTS"""
+
 def demo_upload_cv_and_search_tool(chat_history):
     chat_history = chat_history + [
             {"role": "user", "content": "Tìm cho tôi 2 công việc khớp với CV của tôi nhất.", "metadata": {"id": str(uuid.uuid4())}},
@@ -67,22 +68,16 @@ def demo_upload_cv_and_search_tool(chat_history):
         ]
     return chat_history
 
-def demo_search_by_query_tool(chat_history):
-    chat_history.append(
-        {"role": "user", "content": "Tìm cho tôi 3 job data analysts fulltime", "metadata": {"id": str(uuid.uuid4())}},
-    )
-    return chat_history
+def demo_search_by_query_tool():
+    return gr.MultimodalTextbox(value="Tìm cho tôi 3 job data analysts fulltime")
 
-def demo_score_jds_tool(chat_history, available_job):
+def demo_score_jds_tool(available_job):
     available_job_index = [job['id'] for job in available_job][:2]
-    chat_history.append(
-        {"role": "user", "content": f"Chấm điểm độ phù hợp của những công việc {available_job_index} với cv của tôi.", "metadata": {"id": str(uuid.uuid4())}},
-    )
-    return chat_history
+    return gr.MultimodalTextbox(value=f"Chấm điểm độ phù hợp của công việc {available_job_index} với cv của tôi.")
 
-def demo_review_cv_tool(chat_history, available_job):
-    available_job_index = [job['id'] for job in available_job][0]
-    chat_history.append(
-        {"role": "user", "content": f"Hãy chỉnh sửa cv của tôi để phù hợp hơn với mô tả công việc {available_job_index}.", "metadata": {"id": str(uuid.uuid4())}},
-    )
-    return chat_history
+def demo_review_cv_tool(available_job):
+    available_job_index = [job['id'] for job in available_job][0] or 7363
+    return gr.MultimodalTextbox(value=f"Hãy review, chỉnh sửa job {available_job_index} với cv của tôi.")
+    
+def demo_analyze_market_tool():
+    return gr.MultimodalTextbox(value=f"Phân tích thị trường ngành marketing.")  
