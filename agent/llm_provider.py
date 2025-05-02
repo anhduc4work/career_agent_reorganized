@@ -8,7 +8,7 @@ dotenv.load_dotenv()
 import os
 
 default_model = os.environ.get("DEFAULT_MODEL", "qwen3:8b")
-num_gpu = os.environ("NUM_GPU", 1)
+num_gpu = int(os.environ.get("NUM_GPU", 1))
 
 def get_llm(
     model: Literal["qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
