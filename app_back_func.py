@@ -36,6 +36,9 @@ def show_component():
     """Show Gradio component."""
     return gr.update(visible=True)
 
+def enable_button():
+    return gr.update(interactive=True, variant="primary")
+
 # ======================== State Checking Functions ========================
 
 def get_jds(config):
@@ -273,12 +276,17 @@ def stream_bot_response(config, chat_history, think):
                     chat_history = chat_history[:-1]
             think_message, chat_message = split_message(msg.content)
                     
-            chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"title": f"Considering tool {msg.name} response...", "id": msg.id}})
+            chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"title": f"Finish calling {msg.name}", "id": msg.id}})
         
         elif metadata["langgraph_node"] in ["filter_&_summarize_messages", "extract_user_info"]:
-            if not chat_history[-1].get('metadata', {}).get('title', '') in "Waiting":
+            if not chat_history[-1].get('metadata', {}).get('title', '')[:7] == "Waiting":
                 chat_history.append({"role": "assistant", "content": "", "metadata": {"title": "Waiting"}})
+                
+            elif msg.response_metadata.get('done', False):
+                chat_history.append({"role": "assistant", "content": "", "metadata": {"title": f"Finish updating memory", "id": msg.id}})
+                
             else:
+                # print("damn", msg)
                 chat_history[-1]['metadata']['title'] = f"Waiting memory updates {'.'*(i%10)}"
 
         else:
@@ -294,8 +302,6 @@ def stream_bot_response(config, chat_history, think):
     return chat_history
       # ----------------------- Stream mode :update ------------------      
         
-    # for i, msg in enumerate(graph.invoke(state, config, stream_mode="update")):
-    #     print(i, msg)
 
         
 

@@ -11,7 +11,7 @@ from app_back_func import (
     remove_checkpoint_from_config,
     refresh_internal_state,
     show_component,
-    hide_component
+    enable_button
 )
 
 from app_testcase_func import (
@@ -35,40 +35,46 @@ with gr.Blocks(fill_width=True) as demo:
     gr.Markdown("# Career Agent")
     
     with gr.Tab("Chat"):
-        with gr.Row():
-            user_choices_state = gr.State([initial_user_id])
-            thread_choices_state = gr.State([initial_thread_id])
-            
-            user_id = gr.Dropdown(
-                value=initial_user_id, choices=[initial_user_id],
-                label="User ID", interactive=True, allow_custom_value=True,
-            )
-            add_user = gr.Button("+", scale=0, variant="primary")
-
-            thread_id = gr.Dropdown(
-                value=initial_thread_id, choices=[initial_thread_id],
-                label="Thread ID", interactive=True
-            )
-            add_thread = gr.Button("+", scale=0, variant="stop")
+        
 
         config = gr.JSON(visible=False, value={"configurable": {"thread_id": initial_thread_id, "user_id": initial_user_id}})
         
-        gr.Markdown("___"*40, height=40)
         
         with gr.Row():
             with gr.Column(scale = 1, variant="panel"):
-                demo_upload_cv_and_search_button = gr.Button("1, Demo upload CV and search")
-                demo_search_by_query_button = gr.Button("2, Demo search job query")
-                demo_score_jds_button = gr.Button("3, Demo score job descriptions", visible= False)
-                demo_review_cv_button = gr.Button("4, Demo review cv", visible= False)
-                demo_analyze_market_button = gr.Button("5, Demo analyze job market")
+          
+                user_choices_state = gr.State([initial_user_id])
+                thread_choices_state = gr.State([initial_thread_id])
+                
+                with gr.Row():
+                    user_id = gr.Dropdown(
+                        value=initial_user_id, choices=[initial_user_id],
+                        label="User ID", interactive=True, allow_custom_value=True,
+                    )
+                    add_user = gr.Button("+", variant="stop")
+                    
+                with gr.Row():
+                    thread_id = gr.Dropdown(
+                        value=initial_thread_id, choices=[initial_thread_id],
+                        label="Thread ID", interactive=True
+                    )
+                    add_thread = gr.Button("+", variant="stop")
                 
             with gr.Column(scale=4, variant="compact"):
                 chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
                 with gr.Row():
                     THINK_FLAG = gr.Checkbox(label="No Thinking", scale=0)
                     msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
-    
+        
+        gr.Markdown("___"*40, height=40)
+        gr.Markdown("## Suggestion", height=40)
+        
+        with gr.Row():
+            demo_upload_cv_and_search_button = gr.Button("1, Demo upload CV and search", variant="primary")
+            demo_search_by_query_button = gr.Button("2, Demo search job query", variant="primary")
+            demo_score_jds_button = gr.Button("3, Demo score job descriptions", interactive = False)
+            demo_review_cv_button = gr.Button("4, Demo review cv", interactive = False)
+            demo_analyze_market_button = gr.Button("5, Demo analyze job market", variant="primary")
         
     with gr.Tab("Underthehood") as tab2:
         with gr.Column():
@@ -140,8 +146,8 @@ with gr.Blocks(fill_width=True) as demo:
     ######################## ------------- TEST CASE ------------- #########################
     demo_upload_cv_and_search_button.click(demo_upload_cv_and_search_tool, [chatbot], [chatbot]).\
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
-            then(show_component, outputs=[demo_score_jds_button]).\
-                then(show_component, outputs=[demo_review_cv_button]).\
+            then(enable_button, outputs=[demo_score_jds_button]).\
+                then(enable_button, outputs=[demo_review_cv_button]).\
                     then(refresh_internal_state, [config], [cv_text, new_cv_text, single_thread_summary, cross_thread_info, jds]).\
                         then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
                         

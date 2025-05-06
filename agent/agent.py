@@ -107,7 +107,7 @@ class CareerAgent:
         WINDOWSIZE = 6
         MINNEWMESSAGESALLOW = 4
         
-        yield Command(goto="agent")
+        # yield Command(goto="agent")
         
         if len(not_sum_messages) >= MINNEWMESSAGESALLOW + WINDOWSIZE:
             yield [Command(goto="extract_user_info"), Command(goto="filter_&_summarize_messages")]
@@ -218,7 +218,7 @@ class CareerAgent:
             if messages[-1].name == "review_cv":
                 reviews = "\n".join([f"{i+1}. {fb.criteria}: {fb.issue}\n\tSolution: {fb.solution}" for i, fb in enumerate(state['cv_reviews'])])
                 response =  f"Here is the suggestion:\n {reviews} \nHere is the reviewed cv:\n {state['new_cv']}"
-                return Command(update={"messages": [AIMessage(response)]}, goto=END)
+                return Command(update={"messages": [AIMessage(response)]})
             
 
         model = get_llm(mode="think")
@@ -293,15 +293,16 @@ class CareerAgent:
         """.strip()
 
         workflow = StateGraph(AgentState)
+        workflow.add_node("agent", self._main_agent)
         workflow.add_node("router", self._router)
         workflow.add_node("extract_user_info", self._extract_user_info)
         workflow.add_node("filter_&_summarize_messages", self._filter_and_summarize_messages)
-        workflow.add_node("agent", self._main_agent)
         workflow.add_node("tools", self.tool_node)
 
-        workflow.set_entry_point("router")
-        workflow.add_conditional_edges("agent", tools_condition)
+        workflow.set_entry_point("agent")
+        workflow.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: "router"})
         workflow.add_edge("tools", "agent")
+        workflow.set_finish_point('router')
 
         self.graph = workflow.compile(checkpointer=self.checkpointer, store=self.store)
 
