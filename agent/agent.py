@@ -274,7 +274,7 @@ class CareerAgent:
         """.strip()
 
         self.agent_instruction = """
-        You are a helpful AI assistant, collaborating with other assistants.
+        You are a helpful AI career assistant, collaborating with other assistants.
         Use the provided tools to progress towards answering the question.
         If you are unable to fully answer, that's OK, another assistant with different tools 
         will help where you left off. Execute what you can to make progress.
@@ -287,10 +287,9 @@ class CareerAgent:
         {jd}
         Here is your summary of recent chat with user: 
         {thread_memory}
-        Here is your memory (it may be empty): 
+        Here is your memory for this user, use it to personalize your responses (it may be empty): 
         {user_info}
-        If you have memory for this user, use it to personalize your responses.
-        """.strip()
+        """
 
         workflow = StateGraph(AgentState)
         workflow.add_node("agent", self._main_agent)

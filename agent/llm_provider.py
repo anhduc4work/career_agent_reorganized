@@ -11,7 +11,7 @@ default_model = os.environ.get("DEFAULT_MODEL", "qwen3:8b")
 num_gpu = int(os.environ.get("NUM_GPU", 1))
 
 def get_llm(
-    model: Literal["qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
+    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
     mode: Literal["think", "non-think"] = "non-think",
     num_ctx = 16384,
     num_gpu = num_gpu,
@@ -55,7 +55,7 @@ def get_llm(
 
 def get_llm_structured(
     schema: type[BaseModel],
-    model: Literal["qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model, 
+    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model, 
     mode: Literal["think", "non-think"] = "non-think",
     **kwargs
 ) -> BaseChatModel:

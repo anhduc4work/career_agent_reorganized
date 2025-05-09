@@ -81,3 +81,5 @@ def demo_review_cv_tool(available_job):
     
 def demo_analyze_market_tool():
     return gr.MultimodalTextbox(value=f"Phân tích thị trường ngành marketing.")  
+
+
