@@ -247,7 +247,7 @@ class CareerAgent:
         # print("last", messages[-1])
         response = model.invoke([SystemMessage(system_prompt)]+ messages)
     
-        print("----", response.content[:50], "----")
+        # print("----", response.content[:50], "----")
         
         return Command(update = {"messages": [response]})
     

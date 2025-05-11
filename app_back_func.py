@@ -202,7 +202,7 @@ from typing import Dict
 def split_message(text: str) -> str:
     # Tìm nội dung trong <think>...</think> ngay ở đầu
     match = re.match(r'<think>(.*?)</think>(.*)', text, re.DOTALL)
-    print("input mess------", text)
+    # print("input mess------", text)
     
     if match:
         think_content = match.group(1).strip()
@@ -211,8 +211,8 @@ def split_message(text: str) -> str:
         # Nếu không tìm thấy <think> thì coi toàn bộ là outside
         think_content = ""
         outside_content = text.strip()
-    print("think------", think_content)
-    print("chat------", outside_content)
+    # print("think------", think_content)
+    # print("chat------", outside_content)
     if outside_content.startswith('<think>'):
         outside_content = outside_content[6:]
     
@@ -231,7 +231,7 @@ def stream_bot_response(config, chat_history, think):
     
     print("chat_hist: ", chat_history)
     last_message = chat_history[-1]
-    print("lastmess", last_message)
+    # print("lastmess", last_message)
     try:
         if last_message["metadata"].get("title", ""):
             state = {
