@@ -4,3 +4,5 @@ tools/__pycache__
 venv
 demo_agent.ipynb
 visual_tool.ipynb
+.gradio
+.DS_Store
