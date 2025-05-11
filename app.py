@@ -1,5 +1,5 @@
 import gradio as gr
-from app_back_func import (
+from app_function.backend_function import (
     get_or_create_user_thread,
     initialize_config_and_ui,
     update_user_id_dropdown,
@@ -15,7 +15,7 @@ from app_back_func import (
     diff_texts
 )
 
-from app_testcase_func import (
+from app_function.testcase_function import (
     demo_review_cv_tool,
     demo_score_jds_tool,
     demo_search_by_query_tool,
