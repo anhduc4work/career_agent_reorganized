@@ -70,7 +70,7 @@ def documents_to_json(documents, include_content: bool = True):
 def job_search_by_query(
     job: str, 
     tool_call_id: Annotated[str, InjectedToolCallId],
-    include_content: bool = True,
+    include_content: bool = False,
     k: int = 3,
     job_type: Optional[JobType] = None,
     position: Optional[Position] = None,
@@ -82,7 +82,7 @@ def job_search_by_query(
 
     Args:
         job (str): Job search query (e.g., job title or relevant keywords).
-        include_content (bool): Whether to return full JD content. Set to False if content is not needed (e.g., for market analysis). Defaults to True.
+        include_content (bool): Whether to return full JD content. Set to False if content is not needed (e.g., for market analysis). Defaults to False.
         k (int, optional): Number of top matching jobs to return. Defaults to 3.
         job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, etc.).
         position (Optional[Position], optional): Filter by job level (e.g., junior, senior).

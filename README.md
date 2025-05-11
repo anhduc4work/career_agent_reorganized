@@ -1,9 +1,10 @@
 Usage
+
 git clone https://github.com/anhduc4work/career_agent_reorganized.git
 
-cd careeer_agent_reorganized
+cd career_agent_reorganized
 
-pip install gdown python3.10
+pip install gdown
 
 python3.10 setup_1_data.py
 

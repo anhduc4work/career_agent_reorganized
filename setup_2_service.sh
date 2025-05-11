@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip install -r career_agent_reorganized/requirements.txt
+pip install -r requirements.txt
 
 # Install PostgreSQL and dev libraries
 apt-get update
