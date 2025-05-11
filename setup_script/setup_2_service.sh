@@ -19,7 +19,7 @@ make install  # may need sudo depending on environment
 # Restart PostgreSQL to load extension
 /etc/init.d/postgresql restart
 
-sudo -u postgres psql -c "CREATE TABLE IF NOT EXISTS user_thread (id SERIAL PRIMARY KEY, user_id TEXT, thread_id TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+sudo -u postgres psql -c "CREATE TABLE IF NOT EXISTS user_thread (user_id TEXT, thread_id TEXT);"
 sudo -u postgres psql -c "ALTER TABLE user_thread ADD CONSTRAINT unique_user_thread UNIQUE (user_id, thread_id);"
 sudo -u postgres psql -c "GRANT CONNECT ON DATABASE postgres TO postgres;"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON TABLE user_thread TO postgres;"
