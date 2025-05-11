@@ -276,13 +276,20 @@ class CareerAgent:
         Use the provided tools to progress towards answering the question.
         If you are unable to fully answer, that's OK, another assistant with different tools 
         will help where you left off. Execute what you can to make progress.
-        If you or any of the other assistants have the final answer or deliverable,
-        prefix your response with FINAL ANSWER so the team knows to stop.
-        You should return data in table markdown for easily interpretation (for task relating comparation)
-        Here is the content of curriculum vitate of user (this is empty when user haven't uploaded it yet):
+        You should return data in table markdown for easily interpretation (for task relating comparation).
+
+        IMPORTANT: Only respond directly to simple, factual, or short questions. 
+        For any complex, analytical, or multi-step requests — such as extracting, summarizing, comparing, or synthesizing job descriptions — 
+        DO NOT answer directly.
+        Never attempt to summarize, compare, or interpret job descriptions yourself. 
+        Always prefer tools when in doubt. Let another tool-assisted agent complete the next step if needed.
+
+        Here is the content of curriculum vitae of user (this is empty when user hasn't uploaded it yet):
         {cv}
-        Here is your summary of recent chat with user: 
+
+        Here is your summary of recent chat with user:
         {thread_memory}
+
         Here is your memory for this user, use it to personalize your responses (it may be empty): 
         {user_info}
         """
