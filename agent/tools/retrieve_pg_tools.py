@@ -111,7 +111,7 @@ def job_search_by_query(
         }
     )
     # Format result: 
-    output = retriever.invoke(job)
+    output = retriever.invoke("search_document: "+job)
     formated_response = documents_to_json(output, include_content)
     
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
@@ -153,7 +153,7 @@ def job_search_by_cv(
             'filter': filters
         }
     )
-    output = retriever.invoke(cv)
+    output = retriever.invoke("search_document: "+ cv)
     formated_response = documents_to_json(output, include_content)
     
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 

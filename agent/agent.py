@@ -240,7 +240,6 @@ class CareerAgent:
         system_prompt = self.agent_instruction.format(
                 # tool_names="\n".join([f"{tool.name}: {tool.description}" for tool in self.tools]),
                 cv=cv,
-                jd=jd,
                 user_info=user_info,
                 thread_memory=thread_memory
             )
@@ -270,8 +269,7 @@ class CareerAgent:
         You are summarization expert. Combine the current summary and the given conversation into only brief summary.
         Remember to keep new summary short, brief in about 10-40 words, as short as possible.
         Here is the current summarization (it can be empty):
-        {current_memo}
-        """.strip()
+        {current_memo}""".strip()
 
         self.agent_instruction = """
         You are a helpful AI career assistant, collaborating with other assistants.
@@ -283,8 +281,6 @@ class CareerAgent:
         You should return data in table markdown for easily interpretation (for task relating comparation)
         Here is the content of curriculum vitate of user (this is empty when user haven't uploaded it yet):
         {cv}
-        Here is the content of job description that user mannually upload (this can be empty is they haven't upload):
-        {jd}
         Here is your summary of recent chat with user: 
         {thread_memory}
         Here is your memory for this user, use it to personalize your responses (it may be empty): 
