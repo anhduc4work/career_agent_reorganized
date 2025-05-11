@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git clone https://github.com/anhduc4work/career_agent_reorganized.git
+pip install -r career_agent_reorganized/requirements.txt
 
 # Install PostgreSQL and dev libraries
 apt-get update
