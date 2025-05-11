@@ -8,3 +8,6 @@ huggingface_hub
 pydantic==2.10.6
 python-dotenv
 langchain-ollama
+tqdm
+pandas
+gdown
