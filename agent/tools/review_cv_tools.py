@@ -6,7 +6,7 @@ from langgraph.prebuilt import InjectedState
 from langchain_core.tools.base import InjectedToolCallId
 from langchain_core.tools import tool
 from langgraph.types import Command
-from agent.llm_provider import get_llm_structured
+from agent.llm_provider import get_llm_structured, get_llm
 from agent.tools.retrieve_pg_tools import vector_store
 
 # ----------------------------- SCHEMAS -----------------------------
@@ -29,7 +29,7 @@ class Feedbacks(BaseModel):
         return "\n---\n".join(str(fb) for fb in self.feedbacks)
 
 class ReviewedCV(BaseModel):
-    new_cv: str = Field(description="The new suitable CV after reviewing the candidate's current CV")
+    new_cv: str = Field(description="The new suitable curriculum vitae after reviewing the candidate's current CV, not the old version")
 
 class SuggestChangeState(TypedDict):
     candidate_cv: str
@@ -92,7 +92,8 @@ Instructions:
 - Keep the CV concise, impactful, and professional.
 - Ensure at least 5 major improvements.
 - Never fabricate info—enhance existing content only.
-- Return output in markdown form, remember to highlight changes by green color markdown
+- Return output in markdown form, remember to highlight changes by green color markdown.
+- Must return nothing but new, reviewed, changed Curriculum Vitae.
 """
 
 # --------------------------- AGENT NODES ---------------------------
@@ -108,7 +109,7 @@ def suggest_cv(state: SuggestChangeState):
 
     structured_llm = get_llm_structured(Feedbacks)
     feedbacks = structured_llm.invoke(
-        [SystemMessage(system_message), HumanMessage('Let start the review process')]
+        [SystemMessage(system_message), HumanMessage('Let start the review process /no_think')]
     )
 
     return {'review': feedbacks.feedbacks}
@@ -131,12 +132,20 @@ def adjust_cv(state: SuggestChangeState) -> ReviewedCV:
         n_keys=len(feedbacks)
     )
 
-    structured_llm = get_llm_structured(ReviewedCV)
-    new_cv = structured_llm.invoke(
-        [SystemMessage(system_message), HumanMessage('Let start the adjust process')]
+    structured_llm = get_llm()
+    response = structured_llm.invoke(
+        [SystemMessage(system_message), HumanMessage('Let start the adjust process /no_think')]
     )
+    print("------   ",response)
+    
+    extractor = get_llm_structured(ReviewedCV)
+    extracted = extractor.invoke([
+                SystemMessage("You are a curriculum vitae extractor that helps parser raw cv with markdown."),
+                HumanMessage(f"Here is a messages contain cv content \n {response.content} /no_think")
+            ]
+        )
 
-    return {'new_cv': new_cv.new_cv}
+    return {'new_cv': extracted.new_cv}
 
 # ---------------------------- GRAPH NODES ----------------------------
 builder_1 = StateGraph(SuggestChangeState)

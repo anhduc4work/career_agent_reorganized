@@ -11,7 +11,8 @@ from app_back_func import (
     remove_checkpoint_from_config,
     refresh_internal_state,
     show_component,
-    enable_button
+    enable_button,
+    diff_texts
 )
 
 from app_testcase_func import (
@@ -61,7 +62,7 @@ with gr.Blocks(fill_width=True) as demo:
                     add_thread = gr.Button("+", variant="stop")
                 
             with gr.Column(scale=4, variant="compact"):
-                chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
+                chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user", height=700, resizable = True)
                 with gr.Row():
                     THINK_FLAG = gr.Checkbox(label="No Thinking", scale=0)
                     msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
@@ -78,8 +79,8 @@ with gr.Blocks(fill_width=True) as demo:
         
     with gr.Tab("Underthehood") as tab2:
         with gr.Column():
-            cross_thread_info = gr.Textbox(label="User Info (Cross Thread)", interactive=False, visible=True)
-            single_thread_summary = gr.Textbox(label="Thread Summary", interactive=False, visible=True)
+            cross_thread_info = gr.Textbox(label="User Info (Cross Thread)", interactive=False, visible=True, lines= 5)
+            single_thread_summary = gr.Textbox(label="Thread Summary", interactive=False, visible=True, lines= 5)
         
         gr.Markdown("# Recorded Job")
         with gr.Column():
@@ -96,14 +97,15 @@ with gr.Blocks(fill_width=True) as demo:
             
         
         with gr.Row():
-            cv_text = gr.Textbox(label="CV Content", interactive=False, visible=True)
-            new_cv_text = gr.Textbox(label="Reviewed CV", interactive=False, visible=True)
+            cv_text = gr.Textbox(label="CV Content", interactive=False, visible=True, lines = 50, max_lines=50)
+            new_cv_text = gr.Markdown(label="Reviewed CV", visible=True, height = 600, show_copy_button=True)
 
         cp = gr.HighlightedText(
             label="Diff",
             combine_adjacent=True,
             show_legend=True,
-            min_width=800
+            min_width=800,
+            color_map={"+": "red", "-": "green"},
         )
 
     ############## ------------- FUNCTION HOOKS ------------- ##############
@@ -137,7 +139,8 @@ with gr.Blocks(fill_width=True) as demo:
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
             then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
 
-    tab2.select(refresh_internal_state, [config], [cv_text, new_cv_text, single_thread_summary, cross_thread_info, jds])
+    tab2.select(refresh_internal_state, [config], [cv_text, new_cv_text, single_thread_summary, cross_thread_info, jds]).\
+        then(diff_texts, [cv_text, new_cv_text], cp)
         
 
     # Có thể thêm lại so sánh CV nếu muốn

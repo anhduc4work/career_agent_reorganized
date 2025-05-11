@@ -76,6 +76,14 @@ def refresh_internal_state(config):
     """Update UI with new CV, thread summary, and user memory."""
     return get_uploaded_cv_text(config), get_reviewed_cv_text(config), get_thread_summary(config), get_user_info_memory(config), get_jds(config)
 
+from difflib import Differ
+def diff_texts(text1, text2):
+    d = Differ()
+    return [
+        (token[2:], token[0] if token[0] != " " else None)
+        for token in d.compare(text1, text2)
+    ]
+
 # ======================== Config Initialization ========================
 
 def initialize_config_and_ui(thread_id, user_id):
@@ -229,9 +237,9 @@ def stream_bot_response(config, chat_history, think):
     else:
         add_in = " /think"
     
-    print("chat_hist: ", chat_history)
+    print("chat_hist: ", len(chat_history))
     last_message = chat_history[-1]
-    # print("lastmess", last_message)
+    print("lastmess", last_message)
     try:
         if last_message["metadata"].get("title", ""):
             state = {

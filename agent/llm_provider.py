@@ -39,7 +39,7 @@ def get_llm(
 
         llm = ChatOllama(
             model=model,
-            temperature=temperature,
+            temperature=0, 
             top_p=top_p,
             top_k=20,
             repeat_penalty=1.1,
