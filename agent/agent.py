@@ -214,14 +214,31 @@ class CareerAgent:
         jd = state.get("jd", "")
         config["recursion_limit"] = 2
         
+        mode = state.get("sender", "think")
+        
         if isinstance(messages[-1], ToolMessage):
             if messages[-1].name == "review_cv":
                 reviews = "\n".join([f"{i+1}. {fb.criteria}: {fb.issue}\n\tSolution: {fb.solution}" for i, fb in enumerate(state['cv_reviews'])])
                 response =  f"Here is the suggestion:\n {reviews} \nHere is the reviewed cv:\n {state['new_cv']}"
                 return Command(update={"messages": [AIMessage(response)]})
+            else:
+                if state.get("sender", "") == "no_think":
+                    messages.append(HumanMessage("/no_think"))
+                else:
+                    pass
+                
+        elif isinstance(messages[-1], HumanMessage):
+            if messages[-1].content.endswith('/no_think'):
+                mode = 'no_think'
+            else:
+                mode = "think"
+        
+        else:
+            pass
+        
             
-
-        model = get_llm(mode="think")
+        
+        model = get_llm(mode=mode)
         model = model.bind_tools(self.tools) # cause non streaming
 
 
@@ -249,7 +266,8 @@ class CareerAgent:
     
         # print("----", response.content[:50], "----")
         
-        return Command(update = {"messages": [response]})
+        
+        return Command(update = {"messages": [response], "sender": mode})
     
     def setup_memory_and_store(self):
         conn = connect(self.pg_uri, autocommit=True)

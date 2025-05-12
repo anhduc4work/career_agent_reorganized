@@ -39,12 +39,12 @@ def get_llm(
 
         llm = ChatOllama(
             model=model,
-            temperature=0, 
+            temperature=temperature, 
             top_p=top_p,
             top_k=20,
             repeat_penalty=1.1,
             num_ctx = num_ctx,
-            num_gpu = num_gpu
+            # num_gpu = num_gpu
         )
 
         return llm
