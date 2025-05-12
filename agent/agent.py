@@ -285,6 +285,7 @@ class CareerAgent:
     def build(self):
         self.memo_instruction = """
         You are summarization expert. Combine the current summary and the given conversation into only brief summary.
+        Must Focus on messages from user
         Remember to keep new summary short, brief in about 10-40 words, as short as possible.
         Here is the current summarization (it can be empty):
         {current_memo}""".strip()
