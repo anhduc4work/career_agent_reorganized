@@ -62,7 +62,11 @@ with gr.Blocks(fill_width=True) as demo:
                     add_thread = gr.Button("+", variant="stop")
                 
             with gr.Column(scale=4, variant="compact"):
-                chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user", height=700, resizable = True)
+                chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user", height=700, resizable = True,
+                                     avatar_images=(
+                                                    "./image/user_avt.jpg",
+                                                    "./image/bot_avt.jpg",
+                                                ),)
                 with gr.Row():
                     THINK_FLAG = gr.Checkbox(label="No Thinking", scale=0)
                     msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
