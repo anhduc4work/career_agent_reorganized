@@ -17,6 +17,7 @@ from app_function.backend_function import (
 
 from app_function.testcase_function import (
     demo_review_cv_tool,
+    demo_match_cv_jd_tool,
     demo_score_jds_tool,
     demo_search_by_query_tool,
     demo_upload_cv_and_search_tool,
@@ -77,9 +78,10 @@ with gr.Blocks(fill_width=True) as demo:
         with gr.Row():
             demo_upload_cv_and_search_button = gr.Button("1, Demo upload CV and search", variant="primary")
             demo_search_by_query_button = gr.Button("2, Demo search job query", variant="primary")
-            demo_score_jds_button = gr.Button("3, Demo score job descriptions", interactive = False)
-            demo_review_cv_button = gr.Button("4, Demo review cv", interactive = False)
+            demo_score_jds_button = gr.Button("3, Demo score JDs", interactive = False)
+            demo_match_cv_jd_button = gr.Button("4, Demo match CV-JD", interactive = False)
             demo_analyze_market_button = gr.Button("5, Demo analyze job market", variant="primary")
+            demo_review_cv_button = gr.Button("6, Demo review CV", interactive = False)
         
     with gr.Tab("Underthehood") as tab2:
         with gr.Column():
@@ -101,7 +103,7 @@ with gr.Blocks(fill_width=True) as demo:
             
         
         with gr.Row():
-            cv_text = gr.Textbox(label="CV Content", interactive=False, visible=True, lines = 50, max_lines=50)
+            cv_text = gr.Markdown(label="CV Content", visible=True, height = 600, show_copy_button=True)
             new_cv_text = gr.Markdown(label="Reviewed CV", visible=True, height = 600, show_copy_button=True)
 
         cp = gr.HighlightedText(
@@ -155,8 +157,9 @@ with gr.Blocks(fill_width=True) as demo:
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
             then(enable_button, outputs=[demo_score_jds_button]).\
                 then(enable_button, outputs=[demo_review_cv_button]).\
-                    then(refresh_internal_state, [config], [cv_text, new_cv_text, single_thread_summary, cross_thread_info, jds]).\
-                        then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
+                    then(enable_button, outputs=[demo_match_cv_jd_button]).\
+                        then(refresh_internal_state, [config], [cv_text, new_cv_text, single_thread_summary, cross_thread_info, jds]).\
+                            then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
                         
                     
                 
@@ -170,12 +173,17 @@ with gr.Blocks(fill_width=True) as demo:
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
         then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
         
-    demo_review_cv_button.click(demo_review_cv_tool, [jds], [msg]).\
+    demo_match_cv_jd_button.click(demo_match_cv_jd_tool, [jds], [msg]).\
         then(handle_user_input, [msg, chatbot], [msg, chatbot]).\
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
         then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
     
     demo_analyze_market_button.click(demo_analyze_market_tool, None, [msg]).\
+        then(handle_user_input, [msg, chatbot], [msg, chatbot]).\
+        then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
+        then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])
+        
+    demo_review_cv_button.click(demo_review_cv_tool, None, [msg]).\
         then(handle_user_input, [msg, chatbot], [msg, chatbot]).\
         then(stream_bot_response, [config, chatbot, THINK_FLAG], [chatbot]).\
         then(lambda: gr.MultimodalTextbox(interactive=True), None, [msg])

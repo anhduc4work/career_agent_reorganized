@@ -174,7 +174,7 @@ class CareerAgent:
 
         WINDOWSIZE = 6
         messages_to_sum = not_sum_messages[:-(WINDOWSIZE)]
-        conversation_str = "\n".join(f"{msg.type}: {msg.content}" for msg in messages_to_sum)
+        conversation_str = "\n".join(f"{msg.type}: {msg.content}" for msg in messages_to_sum if msg.type != 'tool')
         new_last_index = last_index + len(messages_to_sum)
 
         current_summary = state.get("chat_history_summary", "")
@@ -217,7 +217,7 @@ class CareerAgent:
         mode = state.get("sender", "think")
         
         if isinstance(messages[-1], ToolMessage):
-            if messages[-1].name == "review_cv":
+            if messages[-1].name in ["review_cv", 'match_cv_jd']:
                 reviews = "\n".join([f"{i+1}. {fb.criteria}: {fb.issue}\n\tSolution: {fb.solution}" for i, fb in enumerate(state['cv_reviews'])])
                 response =  f"Here is the suggestion:\n {reviews} \nHere is the reviewed cv:\n {state['new_cv']}"
                 return Command(update={"messages": [AIMessage(response)]})

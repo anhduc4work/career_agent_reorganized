@@ -114,7 +114,7 @@ def job_market_analysis(jd_indices: list[str], tool_call_id: Annotated[str, Inje
         For effective market analysis, provide at least 5 JD indices. If not, use tool to find more.
 
     Args:
-        jd_indices (list[str]): List of job description IDs to analyze. Minimum 5 recommended.
+        jd_indices (list[str]): List of job description IDs (in same domain/sector) to analyze. Minimum 5 recommended.
 
     """
         # You should call `job_search_by_query` first to retrieve a list of related JD IDs.

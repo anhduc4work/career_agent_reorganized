@@ -41,10 +41,34 @@ class SuggestChangeState(TypedDict):
 
 # ------------------------- PROMPT TEMPLATES -------------------------
 review_instruction = """
-You are an experienced CV Reviewer & Recruitment Specialist responsible for evaluating a candidate’s CV 
-based on a Job Description (JD) and 10 key hiring criteria.
+You are an experienced HR reviewer. Your job is to analyze a candidate’s CV in comparison with a specific job description (JD) and provide a professional, structured, and actionable assessment.
+You do not rewrite or edit the CV. Your task is to point out how well the CV matches the JD, what is missing and what should be improved.
+Please follow this structure in your review:
 
-Your review must include at least 5 pieces of feedback across all criteria.
+	1.	Understand the JD:
+	•	Identify key required skills, qualifications, and responsibilities.
+	•	Highlight critical keywords (e.g., tools, technologies, methods).
+	•	Understand the expected role, domain, and tone of the JD.
+	2.	Compare the CV against the JD:
+	•	Analyze whether the candidate’s CV reflects the required skills and experience.
+	•	Point out missing keywords or competencies.
+	•	Identify parts that do not align with the job’s focus.
+	3.	Evaluate major sections of the CV:
+	•	Career Objective (if present): Is it relevant to the job? Is it specific enough?
+	•	Skills Section: Are the listed skills relevant and do they match the JD?
+	•	Work Experience: Are responsibilities and achievements aligned with the JD?
+	•	Education & Certifications: Are they sufficient for the role?
+	•	Language and tone: Is it professional and aligned with the target role?
+	4.	Give structured feedback:
+	•	Weaknesses: List up to 5 areas where the CV does not meet the JD.
+	•	Suggestions: Provide professional advice on how to improve alignment (without rewriting).
+
+Your feedback must be:
+	•	Honest and objective
+	•	Actionable and specific
+	•	Structured in paragraphs or bullet points
+
+Do not assume missing details — only evaluate based on the given content.
 
 Context:
 Job Description (JD):
@@ -52,34 +76,12 @@ Job Description (JD):
 
 Candidate’s CV:
 {candidate_cv}
-
-Review the CV based on the following criteria:
-1. Job Fit
-2. Work Experience
-3. Technical & Soft Skills
-4. Achievements & Impact
-5. Education & Certifications
-6. Consistency & Accuracy
-7. CV Formatting & Readability
-8. Projects & Contributions
-9. Cultural Fit
-10. Growth Potential & Initiative
-
-Instructions:
-- Be objective and structured.
-- Identify weaknesses and provide specific solutions.
-- Generate at least 5 key feedback points.
-- Avoid generic responses.
-- Highlight missing info.
-- Use bullet points if needed.
 """
 
 adjust_instruction = """
 You are an AI-powered CV Editing Specialist. Improve the candidate’s CV based on reviewer feedback to match the JD and industry standards.
 
 Context:
-Job Description (JD):
-{job_description}
 
 Original Candidate’s CV:
 {candidate_cv}
@@ -171,12 +173,22 @@ review_agent = workflow.compile()
 
 # ----------------------------- TOOL WRAPPER -----------------------------
 @tool
-def review_cv(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_call_id: Annotated[str, InjectedToolCallId]):
-    """Review and improve a CV by comparing it against a specific job description.
+def match_cv_jd(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_call_id: Annotated[str, InjectedToolCallId]):
+    """Analyze and tailor a CV to match a specific job description.
 
+    This tool compares the candidate's CV with the provided JD and rewrites or enhances relevant
+    sections to increase alignment, keyword relevance, and chances of passing ATS screening.
+
+    Key functions include:
+        - Matching skills and experience to job requirements
+        - Rewriting bullet points to reflect results and impact
+        - Adding relevant keywords from the JD
+        - Highlighting transferable skills or accomplishments
+        - Suggesting structural changes for better flow and focus
+        
     Args:
         job_index (str): The identifier of the job description to compare against."""
-    print("--tool: review_cv--")
+    print("--tool: match_cv--")
 
     if not cv:
         raise FileExistsError('CV is not uploaded yet.')
@@ -195,7 +207,7 @@ def review_cv(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_call
 
     return Command(
         update={
-            "messages": [ToolMessage("Succesfully review", tool_call_id=tool_call_id)],
+            "messages": [ToolMessage("Succesfully matching", tool_call_id=tool_call_id)],
             "new_cv": result.get("new_cv", ""),
             "cv_reviews": result.get("review", "")
         }
