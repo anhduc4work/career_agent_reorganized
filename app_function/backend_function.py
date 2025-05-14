@@ -231,11 +231,11 @@ def stream_bot_response(config, chat_history, think):
     """Bot responds to last message; streams token-by-token for animation."""
     print("-b-")
     
-    print("think mode: ",think, "config", config)
+    print("think mode: ", think, "config", config)
     if think:
-        add_in = " /no_think"
-    else:
         add_in = " /think"
+    else:
+        add_in = " /no_think"
     
     print("chat_hist: ", len(chat_history))
     last_message = chat_history[-1]

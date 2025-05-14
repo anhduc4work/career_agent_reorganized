@@ -11,19 +11,24 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.store.postgres import PostgresStore
 from langgraph.checkpoint.postgres import PostgresSaver
 from .llm_provider import get_llm_structured, get_llm
-from typing import Annotated
 from operator import add
 
 
+
+from typing import Annotated, Optional, Union
+
 class AgentState(MessagesState):
-    cv: str
-    jds: Annotated[list, add]
-    sender: str
-    new_cv: str
-    chat_history_summary: str = ""
+    cv: Optional[str] = "Not Available"
+    jds: Annotated[list, add] = ['4942']
+    sender: Optional[str] = "Not Available"
+    new_cv: Optional[str] = "Not Available"
+    chat_history_summary: str = "Not Available"
     last_index: int = 0
-    jd: str
-    cv_reviews: str | list | dict
+    jd: Optional[str] = "Not Available"
+    cv_reviews: Optional[Union[str, list, dict]] =     "Not Available"
+    extractor_insights: Optional[dict] = {"Not Available": "Not Available"}
+    analyst_insights: Optional[dict] = {"Not Available": "Not Available"}
+    suggestor_insights: Optional[dict] = {"Not Available": "Not Available"}
     
     
 class Memory(BaseModel):
@@ -207,25 +212,20 @@ class CareerAgent:
         
         last_index = state.get("last_index", 0)
         messages = state["messages"][last_index:]
-        print("len msgs: ", len(messages))
         user_id = config["configurable"].get("user_id", "")
         thread_memory = state.get("chat_history_summary", "")
         cv = state.get("cv", "")
         jd = state.get("jd", "")
+        print("len msgs: ", len(messages))
         config["recursion_limit"] = 2
         
         mode = state.get("sender", "think")
         
         if isinstance(messages[-1], ToolMessage):
-            if messages[-1].name in ["review_cv", 'match_cv_jd']:
-                reviews = "\n".join([f"{i+1}. {fb.criteria}: {fb.issue}\n\tSolution: {fb.solution}" for i, fb in enumerate(state['cv_reviews'])])
-                response =  f"Here is the suggestion:\n {reviews} \nHere is the reviewed cv:\n {state['new_cv']}"
-                return Command(update={"messages": [AIMessage(response)]})
+            if state.get("sender", "") == "no_think":
+                messages.append(HumanMessage("/no_think"))
             else:
-                if state.get("sender", "") == "no_think":
-                    messages.append(HumanMessage("/no_think"))
-                else:
-                    pass
+                pass
                 
         elif isinstance(messages[-1], HumanMessage):
             if messages[-1].content.endswith('/no_think'):
@@ -236,7 +236,6 @@ class CareerAgent:
         else:
             pass
         
-            
         
         model = get_llm(mode=mode)
         model = model.bind_tools(self.tools) # cause non streaming
@@ -255,17 +254,12 @@ class CareerAgent:
             user_info = ""
 
         system_prompt = self.agent_instruction.format(
-                # tool_names="\n".join([f"{tool.name}: {tool.description}" for tool in self.tools]),
                 cv=cv,
                 user_info=user_info,
                 thread_memory=thread_memory
             )
         
-        # print("last", messages[-1])
         response = model.invoke([SystemMessage(system_prompt)]+ messages)
-    
-        # print("----", response.content[:50], "----")
-        
         
         return Command(update = {"messages": [response], "sender": mode})
     
@@ -291,26 +285,51 @@ class CareerAgent:
         {current_memo}""".strip()
 
         self.agent_instruction = """
-        You are a helpful AI career assistant, collaborating with other assistants.
-        Use the provided tools to progress towards answering the question.
-        If you are unable to fully answer, that's OK, another assistant with different tools 
-        will help where you left off. Execute what you can to make progress.
-        You should return data in table markdown for easily interpretation (for task relating comparation).
+        # Role and Objective  
+You are an intelligent career assistant agent helping users analyze, improve, and generate job application materials such as CVs and job descriptions (JDs). Your goal is to perform each assigned task clearly, accurately, and responsibly.  
 
-        IMPORTANT: Only respond directly to simple, factual, or short questions. 
-        For any complex, analytical, or multi-step requests — such as extracting, summarizing, comparing, or synthesizing job descriptions — 
-        DO NOT answer directly.
-        Never attempt to summarize, compare, or interpret job descriptions yourself. 
-        Always prefer tools when in doubt. Let another tool-assisted agent complete the next step if needed.
+# Critical Instructions  
 
-        Here is the content of curriculum vitae of user (this is empty when user hasn't uploaded it yet):
-        {cv}
+- 🔁 **Persistence:** You are a persistent agent. Always continue working until the task is fully resolved or you have clearly identified that you cannot proceed due to missing information. Do not end prematurely.  
 
-        Here is your summary of recent chat with user:
-        {thread_memory}
+- 🛠️ **Tool Usage:** Prioritize using available tools to extract, evaluate, revise, or summarize CV and JD content. If information is missing or you are unsure, do **not** guess or hallucinate — clearly state what is needed.  
 
-        Here is your memory for this user, use it to personalize your responses (it may be empty): 
-        {user_info}
+- 📏 **Strict Instruction Compliance:**  
+  - Only answer directly if the request is simple, factual, or straightforward (e.g., “Has the user uploaded a CV?” or “What industry is this JD for?”).  
+  - **Never** analyze, revise, compare, or summarize a JD or CV if required data is missing.  
+  - **Never** assume or fabricate JD or CV content.  
+
+- 🧠 **Chain-of-Thought Reasoning:**  
+  1. Understand the task type (e.g., extract, review, revise, generate).  
+  2. Check if all required inputs (CV, JD, context) are present.  
+  3. If sufficient context: proceed with reasoning and respond.  
+  4. If not: clearly inform what’s missing and do not proceed further.  
+
+- 🧾 **Output Format:**  
+  - For analytical or comparison tasks, use **Markdown tables** to clearly present findings. Example:  
+    ```
+    | Criteria        | Feedback                         |
+    |----------------|----------------------------------|
+    | Skill match     | Matches job requirements         |
+    | Experience gap  | Lacks 2+ years compared to JD    |
+    ```
+
+# Context Provided  
+
+## User’s CV (may be empty if not uploaded)
+```text
+{cv}
+
+Summary of Recent Chat History
+
+{thread_memory}
+
+Extracted User Info (used for personalization)
+
+{user_info}
+
+Final Note
+Act like a responsible specialist. If a task cannot be completed due to missing data or unclear intent, say so explicitly. Do not guess, assume, or over-interpret any part of the input.
         """
 
         workflow = StateGraph(AgentState)

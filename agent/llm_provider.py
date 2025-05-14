@@ -7,7 +7,7 @@ from langchain_core.language_models.chat_models import BaseChatModel # Import đ
 dotenv.load_dotenv()
 import os
 
-default_model = os.environ.get("DEFAULT_MODEL", "qwen3:8b")
+default_model = os.environ.get("DEFAULT_MODEL", "qwen3:4b")
 num_gpu = int(os.environ.get("NUM_GPU", 1))
 num_ctx = int(os.environ.get("NUM_CTX", 4096))
 

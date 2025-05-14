@@ -69,7 +69,7 @@ with gr.Blocks(fill_width=True) as demo:
                                                     "./image/bot_avt.jpg",
                                                 ),)
                 with gr.Row():
-                    THINK_FLAG = gr.Checkbox(label="No Thinking", scale=0)
+                    THINK_FLAG = gr.Checkbox(label="Thinking", scale=0)
                     msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
         
         gr.Markdown("___"*40, height=40)
@@ -100,7 +100,10 @@ with gr.Blocks(fill_width=True) as demo:
                                 container=True)
                     # gr.Textbox(label="Content", value = jd['page_content'][:200], show_label=False, container=False)
                     
-            
+        
+        with gr.Row():
+            gr.Markdown("## Origin")
+            gr.Markdown("## New")
         
         with gr.Row():
             cv_text = gr.Markdown(label="CV Content", visible=True, height = 600, show_copy_button=True)
