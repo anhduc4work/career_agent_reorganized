@@ -221,10 +221,13 @@ def review_cv(cv: Annotated[str, InjectedState("cv")], tool_call_id: Annotated[s
     result = review_agent.invoke({
         "candidate_cv": cv,
     })
+    print(type(result), result)
 
+    # result = result.model_dump()
+    print({k: result[k] for k in ('new_cv', 'review')})
     return Command(
         update={
-            "messages": [ToolMessage("Succesfully review", tool_call_id=tool_call_id)],
+            "messages": [ToolMessage(result, tool_call_id=tool_call_id)],
             "new_cv": result.get("new_cv", ""),
             "cv_reviews": result.get("review", "")
         }

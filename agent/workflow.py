@@ -1,3 +1,34 @@
+from agent.sub_agents.coordinator import coordinator_node
+from agent.sub_agents.cv_agent import CVExpert
+from agent.sub_agents.jd_agent import JDExpert
+from agent.sub_agents.job_searcher_agent import job_searcher, router
+from agent.sub_agents.schema import AgentState
+from langgraph.graph import START, END, StateGraph
+
+
+
+
+# workflow = StateGraph(AgentState)
+# workflow.add_node("coordinator", coordinator_node)
+# workflow.add_node("job_searcher_agent", job_seacher)
+# # workflow.add_node("router", router)
+# workflow.add_node("cv_agent", CVExpert)
+# workflow.add_node("jd_agent", JDExpert)
+
+
+# workflow.set_entry_point("coordinator")
+
+# from langgraph.checkpoint.memory import MemorySaver
+# memory = MemorySaver()
+# career_agent = workflow.compile(checkpointer=memory)
+
+
+
+
+
+
+
+
 import json
 import uuid
 from pydantic import BaseModel, Field
@@ -17,19 +48,6 @@ from operator import add
 
 from typing import Annotated, Optional, Union
 
-class AgentState(MessagesState):
-    cv: Optional[str] 
-    jds: Annotated[list, add]
-    sender: Optional[str]
-    new_cv: Optional[str]
-    chat_history_summary: str 
-    last_index: int = 0
-    jd: Optional[str] 
-    cv_reviews: Optional[Union[str, list, dict]]
-    extractor_insights: Optional[dict] 
-    analyst_insights: Optional[dict] 
-    suggestor_insights: Optional[dict] 
-    
     
 class Memory(BaseModel):
     name: str | None = Field(
@@ -271,72 +289,18 @@ class CareerAgent:
     
 
     def build(self):
-        self.memo_instruction = """
-        You are summarization expert. Combine the current summary and the given conversation into only brief summary.
-        Must Focus on messages from user
-        Remember to keep new summary short, brief in about 10-40 words, as short as possible.
-        Here is the current summarization (it can be empty):
-        {current_memo}""".strip()
-
-        self.agent_instruction = """
-        # Role and Objective  
-You are an intelligent career assistant agent helping users analyze, improve, and generate job application materials such as CVs and job descriptions (JDs). Your goal is to perform each assigned task clearly, accurately, and responsibly.  
-
-# Critical Instructions  
-
-- 🔁 **Persistence:** You are a persistent agent. Always continue working until the task is fully resolved or you have clearly identified that you cannot proceed due to missing information. Do not end prematurely.  
-
-- 🛠️ **Tool Usage:** Prioritize using available tools to extract, evaluate, revise, or summarize CV and JD content. If information is missing or you are unsure, do **not** guess or hallucinate — clearly state what is needed.  
-
-- 📏 **Strict Instruction Compliance:**  
-  - Only answer directly if the request is simple, factual, or straightforward (e.g., “Has the user uploaded a CV?” or “What industry is this JD for?”).  
-  - **Never** analyze, revise, compare, or summarize a JD or CV if required data is missing.  
-  - **Never** assume or fabricate JD or CV content.  
-
-- 🧠 **Chain-of-Thought Reasoning:**  
-  1. Understand the task type (e.g., extract, review, revise, generate).  
-  2. Check if all required inputs (CV, JD, context) are present.  
-  3. If sufficient context: proceed with reasoning and respond.  
-  4. If not: clearly inform what’s missing and do not proceed further.  
-
-- 🧾 **Output Format:**  
-  - For analytical or comparison tasks, use **Markdown tables** to clearly present findings. Example:  
-    ```
-    | Criteria        | Feedback                         |
-    |----------------|----------------------------------|
-    | Skill match     | Matches job requirements         |
-    | Experience gap  | Lacks 2+ years compared to JD    |
-    ```
-
-# Context Provided  
-
-## User’s CV (may be empty if not uploaded)
-```text
-{cv}
-
-Summary of Recent Chat History
-
-{thread_memory}
-
-Extracted User Info (used for personalization)
-
-{user_info}
-
-Final Note
-Act like a responsible specialist. If a task cannot be completed due to missing data or unclear intent, say so explicitly. Do not guess, assume, or over-interpret any part of the input.
-        """
-
+        
+        
         workflow = StateGraph(AgentState)
-        workflow.add_node("agent", self._main_agent)
-        workflow.add_node("router", self._router)
-        workflow.add_node("extract_user_info", self._extract_user_info)
-        workflow.add_node("filter_&_summarize_messages", self._filter_and_summarize_messages)
-        workflow.add_node("tools", self.tool_node)
+        workflow.add_node("coordinator", coordinator_node)
+        workflow.add_node("job_searcher_agent", job_searcher)
+        # workflow.add_node("router", router)
+        workflow.add_node("cv_agent", CVExpert)
+        workflow.add_node("jd_agent", JDExpert)
 
-        workflow.set_entry_point("agent")
-        workflow.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: "router"})
-        workflow.add_edge("tools", "agent")
-        workflow.set_finish_point('router')
+
+        workflow.set_entry_point("coordinator")
+        
 
         self.graph = workflow.compile(checkpointer=self.checkpointer, store=self.store)
 

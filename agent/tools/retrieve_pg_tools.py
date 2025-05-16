@@ -52,7 +52,7 @@ vector_store = get_vector_store()
 import json
 
 
-def documents_to_json(documents, include_content: bool = True):
+def documents_to_json(documents, include_content: bool = False):
     result = []
     for doc in documents:
         item = {
@@ -82,7 +82,7 @@ def job_search_by_query(
 
     Args:
         job (str): Job search query (e.g., job title or relevant keywords).
-        include_content (bool): Whether to return full JD content. Set to False if it for market analysis) else must be True. Defaults to False.
+        include_content (bool): Whether to return full JD content. Only Set to True if user ask for detail. Defaults to False.
         k (int, optional): Number of top matching jobs to return. Defaults to 3.
         job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, etc.).
         position (Optional[Position], optional): Filter by job level (e.g., junior, senior).
@@ -154,8 +154,8 @@ def job_search_by_cv(
         }
     )
     output = retriever.invoke("search_document: "+ cv)
-    formated_response = documents_to_json(output, include_content)
-    
+    formated_response = documents_to_json(output, False)
+    print(formated_response)
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
                                                     tool_call_id=tool_call_id)], "jds": formated_response})
     

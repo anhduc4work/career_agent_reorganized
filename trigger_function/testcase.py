@@ -80,7 +80,7 @@ def demo_score_jds_tool(available_job):
 
 def demo_match_cv_jd_tool(available_job):
     available_job_index = [job['id'] for job in available_job][0] or 7363
-    return gr.MultimodalTextbox(value=f"Hãy review, chỉnh sửa job {available_job_index} với cv của tôi.")
+    return gr.MultimodalTextbox(value=f"Hãy review, chỉnh sửa cv của tôi với job {available_job_index}")
     
 def demo_analyze_market_tool():
     return gr.MultimodalTextbox(value=f"Phân tích thị trường ngành marketing.")  

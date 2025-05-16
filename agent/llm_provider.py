@@ -8,14 +8,12 @@ dotenv.load_dotenv()
 import os
 
 default_model = os.environ.get("DEFAULT_MODEL", "qwen3:4b")
-num_gpu = int(os.environ.get("NUM_GPU", 1))
 num_ctx = int(os.environ.get("NUM_CTX", 4096))
 
 def get_llm(
     model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
     mode: Literal["think", "non-think"] = "non-think",
     num_ctx = num_ctx,
-    num_gpu = num_gpu,
 ) -> BaseChatModel:
     """
     Return a configured ChatOllama model.
@@ -44,7 +42,6 @@ def get_llm(
             top_k=20,
             repeat_penalty=1.1,
             num_ctx = num_ctx,
-            # num_gpu = num_gpu
         )
 
         return llm

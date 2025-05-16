@@ -459,14 +459,11 @@ def match_cv_jd(job_index: str, cv: Annotated[str, InjectedState("cv")], tool_ca
     })
 
     print(result)
-    result = result.dict()
-    
+    # result = result.dict()
+    # print(result)
     return Command(
         update={
-            "messages": [ToolMessage(json.dumps({
-                "new_cv": result.get("new_cv", ""),
-                "analyst_insights": result.get("analyst_insights", {})
-            }), tool_call_id=tool_call_id)],
+            "messages": [ToolMessage(str({k: result[k] for k in ('new_cv', 'analyst_insights')}), tool_call_id=tool_call_id)],
             "new_cv": result.get("new_cv", ""),
             "extractor_insights": result.get("extractor_insights", {}),
             "analyst_insights": result.get("analyst_insights", {}),

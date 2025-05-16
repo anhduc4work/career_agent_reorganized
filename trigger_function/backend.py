@@ -5,7 +5,8 @@ import time
 import gradio as gr
 # import dotenv
 # dotenv.load_dotenv()
-from agent.agent import CareerAgent
+# from agent.agent import CareerAgent
+from agent.workflow import CareerAgent
 from agent.tools import all_tools as tools 
 
 # Postgres connection URI
@@ -115,7 +116,7 @@ def initialize_config_and_ui(thread_id, user_id):
                     chat_history.append({"role": "assistant", "content": chat_message, "metadata": {"id": mess.id}})
                     
             elif isinstance(mess, ToolMessage):
-                chat_history.append({"role": "assistant", "content": str(mess.content)[:100] + "...", "metadata": {"title": f"Considering tool {mess.name} response...", "id": mess.id}})
+                chat_history.append({"role": "assistant", "content": "First 100 chars: " +str(mess.content)[:100] + "...", "metadata": {"title": f"Considering tool {mess.name} response...", "id": mess.id}})
                 
         return chat_history, config
     else:
@@ -227,7 +228,7 @@ def split_message(text: str) -> str:
     return think_content, outside_content
 
             
-def stream_bot_response(config, chat_history, think):
+def stream_bot_response_v1(config, chat_history, think):
     """Bot responds to last message; streams token-by-token for animation."""
     print("-b-")
     
@@ -307,10 +308,89 @@ def stream_bot_response(config, chat_history, think):
         
         yield chat_history
     print("end -b-")
-    return chat_history
-      # ----------------------- Stream mode :update ------------------      
-        
+    # return chat_history
 
+
+      # ----------------------- Stream mode :update ------------------      
+def stream_bot_response(config, chat_history, think):
+    """Bot responds to last message; streams token-by-token for animation."""
+    print("-b-")
+    
+    # print("think mode: ", think, "config", config)
+    # if think:
+    #     add_in = " /think"
+    # else:
+    add_in = " /no_think"
+    
+    print("chat_hist: ", len(chat_history))
+    last_message = chat_history[-1]
+    print("lastmess", last_message)
+    try:
+        if last_message["metadata"].get("title", ""):
+            state = {
+                "messages": [HumanMessage(chat_history[-2]["content"]+add_in, id=chat_history[-2]["metadata"]["id"])],
+                "cv": last_message["content"],
+            }
+        else:
+            state = {
+            "messages": [HumanMessage(last_message["content"]+add_in, id=last_message["metadata"]["id"])],
+        }
+    except Exception:
+        state = {
+            "messages": [HumanMessage(last_message["content"]+add_in, id=last_message["metadata"]["id"])],
+        }
+      
+    #   ----------------------- Stream mode ------------------      
+    last_node = 'No'
+    note = ['score', 'cv_analyst', 'jd_extractor', 'cv_expert', 'extract', 'content_reviewer','jd_expert']
+    count = 0
+    print_flag = False
+    for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
+        print(metadata["langgraph_node"], i, msg.content)
+        
+        if metadata["langgraph_node"] == last_node:
+            # if chat_history[-1]['content']
+            if metadata["langgraph_node"] in note:
+                chat_history[-1]['metadata']['title'] = f"Waiting {metadata['langgraph_node']} {'.'*(i%10)}"
+                chat_history[-1]['content'] += msg.content
+            # elif metadata["langgraph_node"] == 'coordinator':
+            #     if msg.content.strip() == '_user':
+            #         print_flag = True
+            #         count += 1
+            #     elif msg.content.strip() == '_':
+            #         print_flag = False
+            #     elif print_flag and count == 1:
+            #         chat_history[-1]['content'] += msg.content
+            #     else:
+            #         pass
+            else:
+                chat_history[-1]['content'] += msg.content
+        else:
+            if metadata["langgraph_node"] == 'tools':
+                chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
+            
+            
+            
+            elif metadata["langgraph_node"] in ['jd_expert', 'job_searcher']:
+                # print(type(msg), msg)
+                if not msg.content:
+                    chat_history.append({"role": "assistant", "content": str(msg.tool_calls[0]), "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
+                else:
+                    chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
+                    chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"id": msg.id}})
+            
+            elif metadata["langgraph_node"] in ['coordinator', 'cv_writer']:
+                
+                chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
+                chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"id": msg.id}})
+            else:
+                chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": f"Waiting {metadata['langgraph_node']}"}})
+
+            last_node = metadata["langgraph_node"]
+        yield chat_history
+    print("end -b-")
+    # return chat_history        
+# ---------------------
         
 
 def edit_message(history, edit_data: gr.EditData):
