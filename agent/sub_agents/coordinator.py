@@ -104,7 +104,8 @@ class CoordinatorOutput(BaseModel):
        
 def coordinator_node(state: AgentState) -> Command:
     print('---coord --- state:------', state.keys())
-    print('---------', state.get('message_from_sender', ''))
+    print('--------- sender', state.get('message_from_sender', ''))
+    print('--------- messs', [m.content for m in state['messages']])
     if isinstance(state.get('message_from_sender', ''), AIMessage):
         
         print('yes',state['sender'], state['message_from_sender'])

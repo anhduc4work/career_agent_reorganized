@@ -83,7 +83,7 @@ def job_search_by_query(
     Args:
         job (str): Job search query (e.g., job title or relevant keywords).
         include_content (bool): Whether to return full JD content. Only Set to True if user ask for detail. Defaults to False.
-        k (int, optional): Number of top matching jobs to return. Defaults to 3.
+        k (int, optional): Number of top matching jobs to return. Defaults to 3 (maximum 4).
         job_type (Optional[JobType], optional): Filter by job type (e.g., fulltime, parttime, etc.).
         position (Optional[Position], optional): Filter by job level (e.g., junior, senior).
     
@@ -91,7 +91,7 @@ def job_search_by_query(
         list: List of job IDs matching the query.
 
     Tip:
-        For market analysis, set k >= 5 to retrieve enough samples for meaningful insights.
+        For market analysis, alway set k = 3 to retrieve enough samples for meaningful insights.
     """
     
     print("--tool: job_search_by_query--")
@@ -112,7 +112,7 @@ def job_search_by_query(
     )
     # Format result: 
     output = retriever.invoke("search_document: "+job)
-    formated_response = documents_to_json(output, include_content)
+    formated_response = documents_to_json(output, False)
     
     return Command(update={"messages": [ToolMessage(f"Here is the {len(output)} jobs founded: " + json.dumps(formated_response, indent=2, ensure_ascii=False), 
                                                     tool_call_id=tool_call_id)], "jds": formated_response})

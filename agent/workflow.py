@@ -1,7 +1,7 @@
 from agent.sub_agents.coordinator import coordinator_node
+from agent.sub_agents.job_searcher_agent import job_searcher, router
 from agent.sub_agents.cv_agent import CVExpert
 from agent.sub_agents.jd_agent import JDExpert
-from agent.sub_agents.job_searcher_agent import job_searcher, router
 from agent.sub_agents.schema import AgentState
 from langgraph.graph import START, END, StateGraph
 
@@ -293,9 +293,9 @@ class CareerAgent:
         
         workflow = StateGraph(AgentState)
         workflow.add_node("coordinator", coordinator_node)
-        workflow.add_node("job_searcher_agent", job_searcher)
         # workflow.add_node("router", router)
         workflow.add_node("cv_agent", CVExpert)
+        workflow.add_node("job_searcher_agent", job_searcher)
         workflow.add_node("jd_agent", JDExpert)
 
 

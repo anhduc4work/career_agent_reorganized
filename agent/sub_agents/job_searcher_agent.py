@@ -35,10 +35,6 @@ You are an expert job search assistant. Your job is to help users find relevant 
 Details
 
 Your primary responsibilities are:
-	•	Determining whether to use search_by_keyword() or search_by_cv() based on the user input
-	•	Asking the user for clarification or input if needed
-	•	Calling the appropriate tool and letting it return the results
-	•	Always responding in the same language as the user
 	•	Always responding with job index
 	•	You must not attempt to generate or fabricate job listings yourself
 	•	You should keep your response brief, friendly, and informative after the tool runs
@@ -52,7 +48,7 @@ Notes
 	•	Your only goal is to route the request to search_by_keyword() or search_by_cv() appropriately
 	•	You should not handle any career advice, market analysis, or CV review — those belong to other agents
 	•	When in doubt, ask for more details rather than guessing
- -  Must return including job index along with content
+MUST MUST return including job index/ jd id index of specific job (for example 1338 and 5646 in 1. Job A (1338), 2. Job B (5646), ...) and following by postion/hyperlink,... information
 """
 
 
@@ -78,11 +74,16 @@ def router(state):
     print("--router--")
     print("----",state)
     sender = state['sender']
-    return Command(
-		goto = sender,
-  		graph=Command.PARENT,
-		update={'sender': 'job_searcher',"message_from_sender": state["messages"][-1], 'jds': state['jds']},)
-
+    if sender == 'coordinator':
+        return Command(
+            goto = sender,
+            graph=Command.PARENT,
+            update={'sender': 'job_searcher',"message_from_sender": state["messages"][-1], 'jds': state['jds']},)
+    else:
+        return Command(
+            goto = sender,
+            graph=Command.PARENT,
+            update={'sender': 'job_searcher',"messages": HumanMessage(state["messages"][-1].content), 'jds': state['jds']},)
 
 builder = StateGraph(AgentState)
 builder.add_node("job_searcher", job_agent_node)

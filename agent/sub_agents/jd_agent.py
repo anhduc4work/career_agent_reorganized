@@ -58,20 +58,19 @@ class AnalyzeState(MessagesState):
 # ---------------------------- AGENT LOGIC ----------------------------
 def get_jd(state):
     print('--get_jd--', state)
-    jds = vector_store.get_by_ids([str(i) for i in state["jd_indices"]])
-    print('1------', jds)
-    jds = [jd.page_content for jd in jds]
+    jds = vector_store.get_by_ids([str(i) for i in state.get("jd_indices", '')])
+    if jds:
+        print('1------', jds)
+        jds = [jd.page_content for jd in jds]
+        return {"jds": jds}
     
-    print('2------', jds)
-    if jds==[]:
+    # print('2------', jds)
+    else:
         print('stop')
         return Command(goto = 'jd_expert',
-        graph = Command.PARENT,
-                   
-        update = {"messages": [AIMessage('fail to route')]})
-    else:
-        return {"jds": jds}
-
+            graph = Command.PARENT,
+            update = {"messages": [AIMessage('fail to route')]})
+        
 def router(state):
     """Route each JD into the extraction node"""
     print('--router--', state)
@@ -121,11 +120,11 @@ def summarize_agent(state):
         SystemMessage(SUMMARIZE_SYSTEM_PROMPT),
         HumanMessage(f"Here are the analyses: {jd_analysis}. /no_think")
     ])
-    # print("--response--", response)
+    print("--response from summaize--", response)
     return Command(goto = 'router',
         graph = Command.PARENT,
                    
-        update = {"messages": [response]})
+        update = {"messages": [response], 'message_from_sender': response})
 
 # ---------------------------- GRAPH ----------------------------
 graph = StateGraph(AnalyzeState)
@@ -135,10 +134,7 @@ graph.add_node("summarize", summarize_agent)
 
 graph.set_entry_point("get_jd")
 graph.add_conditional_edges("get_jd", router, ["parser"])
-
 graph.add_edge("parser", "summarize")
-graph.set_finish_point("summarize")
-
 synthesize_agent = graph.compile()
 
 
@@ -275,11 +271,20 @@ class ScoreState(MessagesState):
 
 def get_jd(state):
     print('--get_jd--', state)
-    jds = vector_store.get_by_ids([str(i) for i in state["jd_indices"]])
-    jds = [jd.page_content for jd in jds]
+    jds = vector_store.get_by_ids([str(i) for i in state.get("jd_indices", '')])
+    if jds:
+        print('1------', jds)
+        jds = [jd.page_content for jd in jds]
+        return {"jds": jds}
     
-    return {"jds": jds}
-
+    # print('2------', jds)
+    else:
+        print('stop')
+        return Command(goto = 'jd_expert',
+        graph = Command.PARENT,
+                   
+        update = {"messages": [AIMessage('fail to route')]})
+        
 def router(state):
     """Route each JD into the extraction node"""
     print('--router--', state)
@@ -321,7 +326,7 @@ def summarize_score_agent(state):
     return Command(goto = 'router',
         graph = Command.PARENT,
                    
-        update = {"message": [response]})
+        update = {"messages": [response], 'message_from_sender': response})
 
 # ---------------------------- GRAPH ----------------------------
 
@@ -334,7 +339,6 @@ def build_score_graph() -> StateGraph:
     score_graph.set_entry_point("get_jd")
     score_graph.add_conditional_edges("get_jd", router, ["score"])    
     score_graph.add_edge("score", "summarize")
-    score_graph.set_finish_point("summarize")
 
     return score_graph.compile()
 
@@ -376,7 +380,11 @@ def call_score_jds(jd_indices: List[int]):
         jd_indices (List[int]): One or more job description indices to compare against the user's CV.
 
     """
-    return
+    jd_indices = jd_indices[:2] or [4942, 7363]
+    response = score_agent.invoke({'jd_indices': jd_indices})
+    
+    print(response)
+    return response
 
 @tool
 def call_synthesize_jds(jd_indices: List[int]):
@@ -395,7 +403,11 @@ def call_synthesize_jds(jd_indices: List[int]):
         - Any anomalies or outliers
 
     """
-    return
+    jd_indices = jd_indices[:2] or [4942, 7363]
+    response = synthesize_agent.invoke({'jd_indices': jd_indices})
+    
+    print(response)
+    return response
 
 @tool
 def call_job_searcher(task_title):
@@ -416,30 +428,58 @@ def jd_agent_node(state: AgentState):
     print('--- jds expert ---')
     llm = get_llm().bind_tools([call_score_jds, call_synthesize_jds, call_job_searcher])
     print('state:  ', state)
+    
+    if isinstance(state["messages"][-1], ToolMessage):
+        print(state["messages"][-1])
+        return Command(goto = 'router')
+    
+    
     response = llm.invoke([SystemMessage(JD_SYSTEM_PROMPT)] + state["messages"])
-    print(response)
+    print("jd response -----", response)
+    
     if len(response.tool_calls) > 0:
         if response.tool_calls[0]['name'] == 'call_job_searcher':
             print("---------goi job")
             return Command(
 				goto = 'job_searcher_agent',
                 graph=Command.PARENT,
-				update={"messages": [AIMessage(response.tool_calls[0]['args']['task_title'])],'sender': 'jd_agent'},
+				update={"messages": [HumanMessage(response.tool_calls[0]['args']['task_title'])],'sender': 'jd_agent'},
 			)
         elif response.tool_calls[0]['name'] == 'call_score_jds':
-
-            return Send(
-                # 'score_jds', {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4394, 7276]), 'cv': state['cv']}
-                'score_jds', {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']}
+            print("---------goi score", response.tool_calls[0])
+            
+            response = call_score_jds.invoke({"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']})
+            print(response)
+            return Command(
+                goto = 'router', graph = Command.PARENT, update = {'message_from_sender': response}
             )
+            # return Command(
+            #     # 'score_jds', {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4394, 7276]), 'cv': state['cv']}
+            #     goto = 'score_jds', update = {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']}
+            # )
         elif response.tool_calls[0]['name'] == 'call_synthesize_jds':
-            return Send(
-                'synthesize_jds', {"jd_indices": [4942, 7363], 'cv': state['cv']}
+            print("---------goi synthe", response.tool_calls[0])
+            
+            response = call_synthesize_jds.invoke({"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4394, 7276])})
+            print(response)
+            
+            return Command(
+                goto = 'router', graph = Command.PARENT, update = {'message_from_sender': response}
             )
 
         else:
             pass
-    return response
+    
+    
+    # return response
+    # else
+    #     # return
+    #     return Command(
+	# 			# goto = 'coordinator',
+    #             # graph=Command.PARENT,
+	# 			# update={"message_from_sender": response,'sender': 'jd_agent', 'jds': state.get('jds', [])},
+	# 			update={"message_from_sender": response, 'sender': 'jd_agent', 'jds': state.get('jds', [])},
+	# 		)
 
 
 
@@ -451,8 +491,13 @@ def jd_agent_node(state: AgentState):
 #     """"""
 #     return
 
-def router(state):
-    return Command(goto= 'coordinator',graph=Command.PARENT, update={'message_from_sender': [state['messages'][-1]]})
+def router(state: AgentState):
+    print('router haha ---', state)
+    if state['sender'] == 'jd_agent':
+        print('got you')
+        return
+    else:
+        return Command(goto= 'coordinator', graph=Command.PARENT, update={'message_from_sender': state['messages'][-1], 'jds': state.get('jds', [])})
 
 from .schema import AgentState
 builder = StateGraph(AgentState)
@@ -464,10 +509,14 @@ builder.add_edge(START, "jd_expert")
 builder.add_conditional_edges(
     "jd_expert",
     tools_condition,
-    {'tools': 'tools',END: "router" }
+    # {'tools': 'tools',END: "router" }
 )
 from langgraph.checkpoint.memory import MemorySaver
 memory = MemorySaver()
-builder.add_node("score_jds", score_agent)
-builder.add_node("synthesize_jds", synthesize_agent)
-JDExpert = builder.compile(checkpointer=memory)
+# builder.add_node("score_jds", score_agent)
+# builder.add_node("synthesize_jds", synthesize_agent)
+
+# builder.add_edge("synthesize_jds", 'router')
+# builder.add_edge("score_jds", 'router')
+
+JDExpert = builder.compile()
