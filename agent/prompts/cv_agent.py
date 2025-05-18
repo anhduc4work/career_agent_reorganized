@@ -631,4 +631,4 @@ workflow.set_entry_point("cv_expert")
 
 from langgraph.checkpoint.memory import MemorySaver
 memory = MemorySaver()
-CVExpert = workflow.compile(checkpointer=memory)
+CVExpert = workflow.compile()

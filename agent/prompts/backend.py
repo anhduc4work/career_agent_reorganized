@@ -346,7 +346,7 @@ def stream_bot_response(config, chat_history, think):
     count = 0
     print_flag = False
     for i, (msg, metadata) in enumerate(graph.stream(state, config, stream_mode="messages")):
-        # print(metadata["langgraph_node"], i, msg.content)
+        print(metadata["langgraph_node"], i, msg.content)
         
         if metadata["langgraph_node"] == last_node:
             # if chat_history[-1]['content']
@@ -383,8 +383,6 @@ def stream_bot_response(config, chat_history, think):
             elif metadata["langgraph_node"] in ['jd_expert', 'job_searcher']:
                 # print(type(msg), msg)
                 if not msg.content and msg.tool_calls:
-                    
-                        
                     chat_history.append({"role": "assistant", "content": str(msg.tool_calls[0]), "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
                 else:
                     chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
@@ -400,7 +398,7 @@ def stream_bot_response(config, chat_history, think):
                 chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
                 chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"id": msg.id}})
             else:
-                chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": f"Waiting {metadata['langgraph_node']}"}})
+                chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"title": f"{metadata['langgraph_node']}"}})
 
             last_node = metadata["langgraph_node"]
         yield chat_history

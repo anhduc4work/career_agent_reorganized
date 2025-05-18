@@ -233,7 +233,7 @@ class CVJDMatchFeedback(BaseModel):
             # self.education_certification +
             # self.project_work_history+
             # self.softskills_language
-        )/(self.job_title_weight + self.years_of_experience_weight + self.required_skills_weight + self.education_certification_weight + self.project_work_history_weight+self.softskills_language_weight)
+        )
         return self
 
 def format_cvjd_feedback_list(feedback_list: list[CVJDMatchFeedback]) -> str:
@@ -320,7 +320,7 @@ def summarize_score_agent(state):
         SystemMessage(summary_instruction),
         HumanMessage(f"Here are the analyses of jobs to compare: {jd_analysis}. /no_think")
     ])
-    # print(response)
+    # print("response", response)
     # return Command(goto = 'router',
     #     graph = Command.PARENT,
                    
@@ -370,7 +370,7 @@ Never:
 
  
 @tool
-def call_score_jds(jd_indices: List[int], cv: Annotated[str, InjectedState('cv')]):
+def call_score_jds(jd_indices: List[int], cv: Annotated[str, InjectedState('cv')]) -> AIMessage:
     """
     Scores the user's CV against one or more job descriptions (JDs) to evaluate fit. You can also
     think of this as ranking JDs based on how well they match the CV.
@@ -386,7 +386,7 @@ def call_score_jds(jd_indices: List[int], cv: Annotated[str, InjectedState('cv')
     return response
 
 @tool
-def call_synthesize_jds(jd_indices: List[int]):
+def call_synthesize_jds(jd_indices: List[int]) -> AIMessage:
     """
      Summarizes and compares multiple job descriptions to extract insights, conduct market analysis about the job market, 
     key skill demands, or overlapping patterns across roles.
@@ -452,7 +452,7 @@ def jd_agent_node(state: AgentState):
             print("---------goi score", response.tool_calls[0])
             
             response = call_score_jds.invoke({"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']})
-            print("da co ket qua score, tra ve parenr: ",type(response), response)
+            print('got mess:', response)
             return Command(
                 goto = 'coordinator', graph = Command.PARENT, update = {'message_from_sender': response['messages'][-1]}
             )
@@ -462,7 +462,7 @@ def jd_agent_node(state: AgentState):
             print("---------goi synthe", response.tool_calls[0])
             
             response = call_synthesize_jds.invoke({"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4394, 7276])})
-            print("da co ket qua syn, tra ve parenr: ",type(response), response)
+            print(response)
             
             return Command(
                 goto = 'coordinator', graph = Command.PARENT, update = {'message_from_sender': response['messages'][-1]}
@@ -478,13 +478,13 @@ def jd_agent_node(state: AgentState):
     
 
 
-def router(state: AgentState):
-    print('router haha ---', state)
-    if state['sender'] == 'jd_agent':
-        print('got you')
-        return
-    else:
-        return Command(goto= 'coordinator', graph=Command.PARENT, update={'message_from_sender': state['message_from_sender'], 'jds': state.get('jds', [])})
+# def router(state: AgentState):
+#     print('router haha ---', state)
+#     if state['sender'] == 'jd_agent':
+#         print('got you')
+#         return
+#     else:
+#         return Command(goto= 'coordinator', graph=Command.PARENT, update={'message_from_sender': state['message_from_sender'], 'jds': state.get('jds', [])})
 
 from .schema import AgentState
 builder = StateGraph(AgentState)

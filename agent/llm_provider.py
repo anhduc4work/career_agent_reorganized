@@ -26,7 +26,7 @@ def get_llm(
         BaseChatModel: An instance of ChatOllama with the desired configuration.
     """
     try:
-        if model == 'openai':
+        if model == 'gpt-4o':
             from langchain_openai import ChatOpenAI
             
             llm = ChatOpenAI(model="gpt-4o")
@@ -60,7 +60,7 @@ def get_llm(
 
 def get_llm_structured(
     schema: type[BaseModel],
-    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model, 
+    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq", "gpt-4o"] = default_model, 
     mode: Literal["think", "non-think"] = "non-think",
     **kwargs
 ) -> BaseChatModel:
