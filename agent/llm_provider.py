@@ -7,11 +7,11 @@ from langchain_core.language_models.chat_models import BaseChatModel # Import đ
 dotenv.load_dotenv()
 import os
 
-default_model = os.environ.get("DEFAULT_MODEL", "qwen3:4b")
-num_ctx = int(os.environ.get("NUM_CTX", 4096))
+default_model = os.getenv("DEFAULT_MODEL", "qwen3:4b")
+num_ctx = int(os.getenv("NUM_CTX", 4096))
 
 def get_llm(
-    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "qwq"] = default_model,
+    model: Literal["qwen3:4b","qwen3:8b", "qwen3:14b", "qwen3:30b", "gpt-4o"] = default_model,
     mode: Literal["think", "non-think"] = "non-think",
     num_ctx = num_ctx,
 ) -> BaseChatModel:
@@ -26,28 +26,35 @@ def get_llm(
         BaseChatModel: An instance of ChatOllama with the desired configuration.
     """
     try:
-        from langchain_ollama import ChatOllama
+        if model == 'openai':
+            from langchain_openai import ChatOpenAI
+            
+            llm = ChatOpenAI(model="gpt-4o")
+        else: 
+            from langchain_ollama import ChatOllama
 
-        if mode == "think":
-            temperature = 0.6
-            top_p = 0.95
-        else:  # non-think
-            temperature = 0.7
-            top_p = 0.8
+            if mode == "think":
+                temperature = 0.6
+                top_p = 0.95
+            else:  # non-think
+                temperature = 0.7
+                top_p = 0.8
 
-        llm = ChatOllama(
-            model=model,
-            temperature=temperature, 
-            top_p=top_p,
-            top_k=20,
-            repeat_penalty=1.1,
-            num_ctx = num_ctx,
-        )
+            
+            llm = ChatOllama(
+                model=model,
+                temperature=temperature, 
+                top_p=top_p,
+                top_k=20,
+                repeat_penalty=1.1,
+                num_ctx = num_ctx,
+            )
 
         return llm
 
+    
     except Exception as e:
-        print(f"Lỗi khi khởi tạo: {e}")
+        print(f"Lỗi khi khởi tạo: {e}, let use open ai")
         raise e
 
 

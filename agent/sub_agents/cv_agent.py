@@ -38,72 +38,56 @@ class CVExpertOutput(BaseModel):
             "Determines the next specialized agent to handle the request:\n"
             "- 'cv_format': handles formatting and presentation of the CV (by default if user not mention anything)\n"
             "- 'cv_content': handles content relevance and alignment with job description"
+            """# Rules
+
+            ## 1. Next Step: CV Type
+            - **"cv_format"**:
+                - The user talks about appearance, layout, styling, visual structure, or general professionalism.
+                - Or: The user does *not mention* any job, JD, role, position, or matching.
+                - Or: The user just say review/rewrite my cv.
+
+            - **"cv_content"**:
+                - The user mentions relevance, matching, alignment with roles, job descriptions, or skills."""
         )
     )
 
     # Loại yêu cầu: đánh giá hay chỉnh sửa CV
-    action_type: Literal['review', 'rewrite'] = Field(..., description="Indicates whether the request is for 'review' (assessment only) or 'rewrite' (content update/improvement)")
+    action_type: Literal['review', 'rewrite'] = Field(..., description="""Indicates whether the request is for 'review' (assessment only) or 'rewrite' (content update/improvement) Action Type
+            - **"review"**:
+                - The user wants an evaluation, feedback, or opinion only.
+                - Clues: "check", "review", "is it good enough", "does it match", etc.
+
+            - **"rewrite"**:
+                - The user wants to rewrite, improve, optimize, or tailor the CV.
+                - Clues: "rewrite", "improve", "make better", "customize", etc.""")
 
     # Chỉ mục (index) của job để dùng làm đối chiếu với CV
-    jd_index: int = Field(default=4943, description="Index or ID of the Job Description to compare against when analyzing CV content. If none: set to 4939")
+    jd_index: int = Field(..., description="""
+                          Index or ID of the Job Description to compare against when analyzing CV content. If none: set to 4939 ## 3. JD Index
+            - If the request mentions a specific job, role, or reference number, extract the correct JD index (e.g. 7383).
+            - If no JD is mentioned or implied, return 0.""")
 
 CV_SYSTEM_PROMPT = """
 You are an expert assistant that routes CV-related requests to the correct processing step.
 
-Your job is to analyze a user request and determine:
+Your job is to determine:
 1. Whether it concerns **format** (layout, style) or **content** (matching a job description).
 2. Whether the user wants a **review** (feedback only) or a **rewrite** (improvement).
 3. Which job description to use for comparison, if applicable.
 
-# Rules
-
-## 1. Next Step: CV Type
-- **"cv_format"**:
-    - The user talks about appearance, layout, styling, visual structure, or general professionalism.
-    - Or: The user does *not mention* any job, JD, role, position, or matching.
-
-- **"cv_content"**:
-    - The user mentions relevance, matching, alignment with roles, job descriptions, or skills.
-
-## 2. Action Type
-- **"review"**:
-    - The user wants an evaluation, feedback, or opinion only.
-    - Clues: "check", "review", "is it good enough", "does it match", etc.
-
-- **"rewrite"**:
-    - The user wants to rewrite, improve, optimize, or tailor the CV.
-    - Clues: "rewrite", "improve", "make better", "customize", etc.
-
-## 3. JD Index
-- If the request mentions a specific job, role, or reference number, extract the correct JD index (e.g. 7383).
-- If no JD is mentioned or implied, return 0.
-
-# Output
-
-Always return a JSON object with these three fields:
-- `next_step`: either `"cv_format"` or `"cv_content"`
-- `action_type`: either `"review"` or `"rewrite"`
-- `jd_index`: string — the JD index to use for comparison, or `"null"` if none is specified
-
-# Examples
-
+# Example
 User: "Review my cv"
 → { "next_step": "cv_format", "action_type": "review", "jd_index": "null" }
 
-User: "Please improve my resume for the Data Analyst role (JD #4920)"
+User: "adjust/align/improve my cv for the job role (JD #4920)"
 → { "next_step": "cv_content", "action_type": "rewrite", "jd_index": 4920 }
 
-User: "Does this resume match the job description I gave earlier?"
-→ { "next_step": "cv_content", "action_type": "review", "jd_index": "use context if available" }
-
 # Notes
-
-- Don’t explain your reasoning — only output the JSON.
 - Always return all 3 fields.
 """
 def cv_expert(state) -> Command:
-    print("--cv-jd--")
-    print("----",type(state))
+    print("--cv--")
+    print("----",type(state), state)
     jd = state.get('jd', '')
     
     if not state.get('cv', ''):
@@ -140,22 +124,21 @@ def cv_expert(state) -> Command:
                                     feedback: state.get(feedback, '')
                                     })
     else:
-        if not jd:
-            try:
-                jd = vector_store.get_by_ids([str(response.jd_index)])[0].page_content
-                print(f'got {jd}')
-            except Exception as e:
-                print(e)
-                return Command(
-                    goto = state['sender'],
-                    update={"messages": [AIMessage('Job index is not available try default value 4943')],'sender': 'cv_agent'},
-                )
+                
         if response.next_step == 'cv_content':
+            
+            if not jd:
+                try:
+                    jd = vector_store.get_by_ids([str(response.jd_index)])[0].page_content
+                    print(f'got {jd}')
+                except Exception as e:
+                    jd = vector_store.get_by_ids(['4942'])[0].page_content
+                    print(e)
+            
             return Send('jd_extractor', {'sender': 'cv_expert','goto': response.action_type,
                                     'jd': jd, 'cv': state['cv']})
 
-        return Send(response.next_step, {'sender': 'cv_expert','goto': response.action_type,
-                                    'jd': jd, 'cv': state['cv']})
+        return Send(response.next_step, {'sender': 'cv_expert','goto': response.action_type, 'cv': state['cv']})
                 
 
 from .schema import AgentState
@@ -183,7 +166,6 @@ You are an HR expert whose task is to review and evaluate a candidate’s CV bas
 	•	Is the address overly detailed? (Only district/city is needed)
 	•	Are there unnecessary details like ID number, gender, age, or marital status?
 	•	Is the personal info section concise (less than 4 lines)?
-	•	Is the photo professional (no selfies, clear face, plain background)?
 
 	4.	Career objective (optional):
 

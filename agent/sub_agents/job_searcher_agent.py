@@ -5,7 +5,7 @@ from agent.llm_provider import get_llm_structured, get_llm
 from agent.tools.retrieve_pg_tools import vector_store
 from langgraph.constants import Send
 from langgraph.types import Command
-from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
+from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage, AnyMessage
 from operator import add
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -47,14 +47,15 @@ Notes
 	•	Keep responses concise and focused
 	•	Your only goal is to route the request to search_by_keyword() or search_by_cv() appropriately
 	•	You should not handle any career advice, market analysis, or CV review — those belong to other agents
-	•	When in doubt, ask for more details rather than guessing
+	•	Never doubting 
 MUST MUST return including job index/ jd id index of specific job (for example 1338 and 5646 in 1. Job A (1338), 2. Job B (5646), ...) and following by postion/hyperlink,... information
 """
 
 
-def job_agent_node(state):
+def job_agent_node(state: AgentState):
     print("--job searcher--")
     print("--state: ", state)
+    # print("--message form sender", message_from_sender)
     llm = get_llm().bind_tools([search_by_cv, search_by_keyword], )
     messages = state["messages"]
     cv = state.get('cv', '')
@@ -65,10 +66,18 @@ def job_agent_node(state):
     
     if isinstance(messages[-1], ToolMessage):
         messages.append(HumanMessage('/no_think'))
-    
-    response = llm.invoke([SystemMessage(JOB_SEARCHER_SYSTEM_PROMPT + add_in)] + messages)
-    
-    return {"messages": [response], 'sender': state['sender'], 'jds': state['jds']}
+        
+    if isinstance(state.get('message_from_sender', ''), HumanMessage):
+        response = llm.invoke([SystemMessage(JOB_SEARCHER_SYSTEM_PROMPT + add_in)] + messages + [state['message_from_sender']])
+        
+        return {"messages": [state['message_from_sender'], response], 
+                'message_from_sender': '',
+                'sender': state['sender'], 
+                'jds': state['jds']}
+    else:
+        response = llm.invoke([SystemMessage(JOB_SEARCHER_SYSTEM_PROMPT + add_in)] + messages)
+        
+        return {"messages": [response], 'sender': state['sender'], 'jds': state['jds']}
 
 def router(state):
     print("--router--")
@@ -83,7 +92,7 @@ def router(state):
         return Command(
             goto = sender,
             graph=Command.PARENT,
-            update={'sender': 'job_searcher',"messages": HumanMessage(state["messages"][-1].content), 'jds': state['jds']},)
+            update={'sender': 'job_searcher',"message_from_sender": HumanMessage(state["messages"][-1].content), 'jds': state['jds']},)
 
 builder = StateGraph(AgentState)
 builder.add_node("job_searcher", job_agent_node)

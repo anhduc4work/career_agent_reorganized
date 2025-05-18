@@ -1,4 +1,4 @@
-from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
+from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage, AnyMessage
 from typing import Optional, Literal, List, Union, Dict, get_args
 from typing import Annotated, Optional, Union, Literal
 
@@ -24,5 +24,6 @@ class AgentState(MessagesState):
     goto: str
     content_reviewer_insights: str | dict 
     format_reviewer_insights: str | dict
+    message_from_sender: AnyMessage
     
     

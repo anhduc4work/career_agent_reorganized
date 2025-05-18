@@ -355,13 +355,19 @@ def stream_bot_response(config, chat_history, think):
                 chat_history[-1]['content'] += msg.content
                 
             elif metadata["langgraph_node"] == 'coordinator':
+                
                 if msg.content.strip() == '_user':
                     print_flag = True
                     count += 1
-                # elif msg.content.strip() == '_':
-                #     print_flag = False
+                
                 elif print_flag and count == 1:
-                    chat_history[-1]['content'] += msg.content
+                    if len(msg.content) > 10:
+                        pass
+                    else:
+                        if chat_history[-1]['content'].startswith('": "'):
+                            chat_history[-1]['content'] = ""
+                        chat_history[-1]['content'] += msg.content
+                
                 else:
                     pass
             else:
@@ -381,8 +387,13 @@ def stream_bot_response(config, chat_history, think):
                 else:
                     chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
                     chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"id": msg.id}})
-            
-            elif metadata["langgraph_node"] in ['coordinator', 'cv_writer']:
+                    
+            elif metadata["langgraph_node"] == 'coordinator':
+                
+                chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
+                chat_history.append({"role": "assistant", "content": '', "metadata": {"id": msg.id}})
+                
+            elif metadata["langgraph_node"] in ['cv_writer']:
                 
                 chat_history.append({"role": "assistant", "content": '', "metadata": {"title": metadata["langgraph_node"], "id": msg.id}})
                 chat_history.append({"role": "assistant", "content": msg.content, "metadata": {"id": msg.id}})

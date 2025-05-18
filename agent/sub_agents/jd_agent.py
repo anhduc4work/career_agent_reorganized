@@ -107,9 +107,7 @@ Your goal is to:
 1. Identify common patterns across the JDs.
 2. Highlight differences or variations.
 3. Note any unique features in any JD.
-4. Optionally, categorize JDs into types.
-5. Provide a final summary insight about the market for this role.
-
+4. Keep the summary in only about 300 words
 Use markdown formatting and bullet points/tables if appropriate.
 """
 def summarize_agent(state):
@@ -371,7 +369,7 @@ Never:
 
  
 @tool
-def call_score_jds(jd_indices: List[int]):
+def call_score_jds(jd_indices: List[int], cv: Annotated[str, InjectedState('cv')]):
     """
     Scores the user's CV against one or more job descriptions (JDs) to evaluate fit. You can also
     think of this as ranking JDs based on how well they match the CV.
@@ -381,7 +379,7 @@ def call_score_jds(jd_indices: List[int]):
 
     """
     jd_indices = jd_indices[:2] or [4942, 7363]
-    response = score_agent.invoke({'jd_indices': jd_indices})
+    response = score_agent.invoke({'jd_indices': jd_indices, 'cv': cv})
     
     print(response)
     return response
@@ -429,12 +427,16 @@ def jd_agent_node(state: AgentState):
     llm = get_llm().bind_tools([call_score_jds, call_synthesize_jds, call_job_searcher])
     print('state:  ', state)
     
-    if isinstance(state["messages"][-1], ToolMessage):
-        print(state["messages"][-1])
-        return Command(goto = 'router')
+    # if isinstance(state["messages"][-1], ToolMessage):
+    #     print('toolllll',state["messages"][-1])
+    #     return Command(goto = 'router')
     
-    
-    response = llm.invoke([SystemMessage(JD_SYSTEM_PROMPT)] + state["messages"])
+    if isinstance(state.get('message_from_sender', ''), HumanMessage):
+        response = llm.invoke([SystemMessage(JD_SYSTEM_PROMPT)] + state["messages"]+ [state['message_from_sender']])
+        
+    else:
+        response = llm.invoke([SystemMessage(JD_SYSTEM_PROMPT)] + state["messages"])
+        
     print("jd response -----", response)
     
     if len(response.tool_calls) > 0:
@@ -443,7 +445,7 @@ def jd_agent_node(state: AgentState):
             return Command(
 				goto = 'job_searcher_agent',
                 graph=Command.PARENT,
-				update={"messages": [HumanMessage(response.tool_calls[0]['args']['task_title'])],'sender': 'jd_agent'},
+				update={"message_from_sender": HumanMessage(response.tool_calls[0]['args']['task_title']),'sender': 'jd_agent'},
 			)
         elif response.tool_calls[0]['name'] == 'call_score_jds':
             print("---------goi score", response.tool_calls[0])
@@ -451,12 +453,8 @@ def jd_agent_node(state: AgentState):
             response = call_score_jds.invoke({"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']})
             print(response)
             return Command(
-                goto = 'router', graph = Command.PARENT, update = {'message_from_sender': response}
+                goto = 'coordinator', graph = Command.PARENT, update = {'message_from_sender': response}
             )
-            # return Command(
-            #     # 'score_jds', {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4394, 7276]), 'cv': state['cv']}
-            #     goto = 'score_jds', update = {"jd_indices": response.tool_calls[0]['args'].get('jd_indices', [4942, 7363]), 'cv': state['cv']}
-            # )
         elif response.tool_calls[0]['name'] == 'call_synthesize_jds':
             print("---------goi synthe", response.tool_calls[0])
             
@@ -464,12 +462,15 @@ def jd_agent_node(state: AgentState):
             print(response)
             
             return Command(
-                goto = 'router', graph = Command.PARENT, update = {'message_from_sender': response}
+                goto = 'coordinator', graph = Command.PARENT, update = {'message_from_sender': response}
             )
 
         else:
             pass
-    
+    else:
+        return Command(
+                goto = 'coordinator', graph = Command.PARENT, update = {'message_from_sender': response}
+            )
     
     # return response
     # else

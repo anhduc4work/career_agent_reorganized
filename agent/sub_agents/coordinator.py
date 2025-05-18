@@ -24,23 +24,8 @@ from langgraph.constants import Send
 from typing import Optional, Literal, List, Union, Dict, get_args
 import os 
 import json
+from .schema import AgentState
 
-class AgentState(MessagesState):
-    sender: str
-    cv: Optional[str] 
-    jds: Annotated[list, add]
-    sender: Optional[str]
-    new_cv: Optional[str]
-    chat_history_summary: str 
-    last_index: int = 0
-    jd: Optional[str] 
-    extractor_insights: Optional[dict] 
-    analyst_insights: Optional[dict] 
-    suggestor_insights: Optional[dict] 
-    goto: str
-    content_reviewer_insights: str | dict 
-    format_reviewer_insights: str | dict
-    message_from_sender: AnyMessage
 
 COORDINATOR_SYSTEM_PROMPT = """
 You are CareerFlow, an intelligent AI coordinator that helps users navigate their career journey. 
@@ -63,13 +48,14 @@ Use `next_step = "<AGENT>"` when:
   
 | Request Type                                | Set `next_step`          |
 |--------------------------------------------|---------------------------|
-| Searching for jobs                         | "job_searcher_agent"      |
+| Searching for jobs by query                | "job_searcher_agent"      |
+| Searching for jobs similar to CV           | "job_searcher_agent"      |
 | Scoring CV against job descriptions        | "jd_agent"                |
 | Ranking or comparing job descriptions      | "jd_agent"                |
 | Synthesizing job insights or market trends | "jd_agent"                |
 | Analyzing job market, domain market        | "jd_agent"                |
 | Reviewing, editing, or aligning a CV format| "cv_agent"                |
-| Reviewing, aligning a CV content to a JD   | "cv_agent"                |
+| Hãy review, chỉnh sửa cv của tôi với job A | "cv_agent"                |
 
 📌 **Important**: When setting `next_step` to a specific agent, always include a `message_to_next_agent` that summarizes the user's intent or provides context for the next agent. This ensures a smooth handoff and better user experience.
 
@@ -105,7 +91,7 @@ class CoordinatorOutput(BaseModel):
 def coordinator_node(state: AgentState) -> Command:
     print('---coord --- state:------', state.keys())
     print('--------- sender', state.get('message_from_sender', ''))
-    print('--------- messs', [m.content for m in state['messages']])
+    print('--------- messs', [m.content[:40] for m in state['messages']])
     if isinstance(state.get('message_from_sender', ''), AIMessage):
         
         print('yes',state['sender'], state['message_from_sender'])
@@ -124,7 +110,7 @@ def coordinator_node(state: AgentState) -> Command:
     
     
     response = llm.invoke(
-        [SystemMessage(COORDINATOR_SYSTEM_PROMPT+add_in)] + messages
+        [SystemMessage(COORDINATOR_SYSTEM_PROMPT+add_in)] + messages[-4:]
     )
     print('res:------', response)
     
@@ -137,9 +123,11 @@ def coordinator_node(state: AgentState) -> Command:
                     update= {"messages": [AIMessage(response.message_to_user)]}
             )
     else:
-        return Send(response.next_step, {"messages":  response.message_to_next_agent+ "(user said: "+ messages[-1].content+ ' /no_think', 
+        # return 
+        return Command(goto = [Send(response.next_step, {"messages":  response.message_to_next_agent+ "(user said: "+ messages[-1].content+ ' /no_think', 
                                 'sender': 'coordinator',
                                 'cv': state.get('cv', ''),
                                 'content_reviewer_insights': state.get('content_reviewer_insights', ''),
                                 'format_reviewer_insights': state.get('format_reviewer_insights', ''),
-                                })
+                                }),], update = {"messages": [AIMessage(response.message_to_user)]}
+            )

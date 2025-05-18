@@ -28,5 +28,5 @@ sudo -u postgres psql -c "CREATE EXTENSION IF NOT EXISTS vector;"
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
 
 
-ollama pull qwen3:4b
+ollama pull $DEFAULT_MODEL
 ollama pull nomic-embed-text
