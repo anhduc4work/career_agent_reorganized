@@ -1,7 +1,6 @@
 #!/bin/bash
 
 pip install -r requirements.txt
-curl -fsSL https://ollama.com/install.sh | sh
 
 # Install PostgreSQL and dev libraries
 apt-get update
@@ -28,5 +27,6 @@ sudo -u postgres psql -c "CREATE EXTENSION IF NOT EXISTS vector;"
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
 
 
-ollama pull $DEFAULT_MODEL
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3:8b
 ollama pull nomic-embed-text

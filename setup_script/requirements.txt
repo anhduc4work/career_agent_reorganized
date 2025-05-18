@@ -10,3 +10,4 @@ python-dotenv
 langchain-ollama
 tqdm
 pandas
+langchain-openai

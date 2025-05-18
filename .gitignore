@@ -8,3 +8,4 @@ visual_tool.ipynb
 .gradio
 .DS_Store
 agent/tools/match_cv_jd_v1.py
+notebook.ipynb
