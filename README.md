@@ -9,33 +9,51 @@
 - **Market Analysis**: Aggregate and analyze job descriptions to identify skill trends and demand patterns.
 - **Interactive Chat Interface**: Engage with the assistant through a conversational UI powered by Gradio.
 
+## 📊 System Architecture
+
+### 🧠 Career Agent Workflow
+
+This diagram illustrates how the career agent coordinates specialized modules (e.g., job search, CV analysis, JD parsing, and rewriting).
+
+![Workflow](./image/workflow.png)
+
+---
+
+### 🔍 Job Search Tool Design
+
+This component enables semantic search over job data, filtering by metadata (e.g., position, working time) and returning top matches using embeddings.
+
+![Job Search Tool](./image/job_search_tool.png)
+
+---
+
 ## 🛠️ Installation
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11
 
 ### Setup Instructions
 
 1. **Clone the repository**:
 
-	```bash
-	git clone https://github.com/anhduc4work/career_agent_reorganized.git
-	cd career_agent_reorganized
-	```
+    ```bash
+    git clone https://github.com/anhduc4work/career_agent_reorganized.git
+    cd career_agent_reorganized
+    ```
 
 2. **Setup**:
 
-	```bash
-	chmod +x setup.sh
-	bash setup.sh
-	```
+    ```bash
+    chmod +x setup.sh
+    bash setup.sh
+    ```
 
 3. **Run App**:
 
-	```bash
-	python3 app.py
-	```
+    ```bash
+    python3 app.py
+    ```
 
 ## 🧪 Testing
 
@@ -46,8 +64,6 @@ The system includes predefined scenarios accessible via the Gradio interface to 
 - Reviewing and enhancing a CV for a specific job description.
 - Analyzing market trends from multiple job descriptions.
 
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
-"""
